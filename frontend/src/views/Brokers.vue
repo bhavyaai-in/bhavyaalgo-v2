@@ -1,5 +1,6 @@
 <script setup>
 import { ref, onMounted } from 'vue'
+import { api } from '../utils/api.js'
 import BrokerFormModal from '../modals/brokers/BrokerFormModal.vue'
 import BrokerModal from '../modals/brokers/BrokerModal.vue'
 import PlaceOrderModal from '../modals/brokers/PlaceOrderModal.vue'
@@ -32,19 +33,6 @@ const form = ref({
   is_active: false,
   is_autologin: false,
 })
-
-function token() {
-  return localStorage.getItem('token')
-}
-
-async function api(path, opts = {}) {
-  const res = await fetch(path, {
-    headers: { 'Content-Type': 'application/json', Authorization: token() },
-    ...opts,
-  })
-  if (!res.ok) throw new Error(await res.text())
-  return res.json()
-}
 
 async function fetchBrokers() {
   brokers.value = await api('/api/brokers')

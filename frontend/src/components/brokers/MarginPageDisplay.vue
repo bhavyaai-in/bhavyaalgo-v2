@@ -1,6 +1,7 @@
 <script setup>
 import { ref, computed, onMounted, watch } from 'vue'
 import { useRoute } from 'vue-router'
+import { api } from '../../utils/api.js'
 
 const props = defineProps({ data: null, broker: null })
 const route = useRoute()
@@ -12,29 +13,22 @@ const error = ref('')
 const display = computed(() => props.data || margin.value)
 
 function cap(str) { if (!str) return ''; return str.replace(/\b\w/g, c => c.toUpperCase()) }
-function token() { return localStorage.getItem('token') }
-async function api(path, opts = {}) {
-  const res = await fetch(path, { headers: { 'Content-Type': 'application/json', Authorization: token() }, ...opts })
-  if (!res.ok) throw new Error(await res.text())
-  return res.json()
-}
 async function fetchBrokers() {
   brokers.value = await api('/api/brokers')
-  if (brokers.value.length > 0 && !selectedId.value && !props.broker) selectedId.value = String(brokers.value[0].id)
+  if (brokers.value.length > 0 && !selectedId.value) selectedId.value = String(brokers.value[0].id)
 }
 async function fetchData() {
-  const id = props.broker?.id || selectedId.value
+  const id = selectedId.value
   if (!id) return
   loading.value = true; error.value = ''; margin.value = null
   try { margin.value = await api(`/api/broker-margin/${id}`) }
   catch (e) { error.value = e.message }
   finally { loading.value = false }
 }
-watch(selectedId, () => { if (brokers.value.length) fetchData() })
+watch(selectedId, () => { if (selectedId.value) fetchData() })
 onMounted(async () => {
   await fetchBrokers()
-  if (props.broker) await fetchData()
-  else if (selectedId.value) fetchData()
+  if (props.broker) selectedId.value = String(props.broker.id)
 })
 </script>
 

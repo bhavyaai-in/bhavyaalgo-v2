@@ -89,7 +89,6 @@ header {
   gap: 0;
   border-bottom: 2px solid hsl(var(--border));
   margin-bottom: 1.5rem;
-  overflow-x: auto;
 }
 .tabs button {
   padding: .6rem 1rem;

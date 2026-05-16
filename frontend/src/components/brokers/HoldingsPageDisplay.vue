@@ -1,6 +1,7 @@
 <script setup>
 import { ref, computed, onMounted, watch } from 'vue'
 import { useRoute } from 'vue-router'
+import { api } from '../../utils/api.js'
 import HoldingsTable from './HoldingsTable.vue'
 
 const props = defineProps({ data: null, broker: null })
@@ -13,15 +14,9 @@ const loading = ref(false)
 const error = ref('')
 const displayData = computed(() => props.data || raw.value)
 
-function token() { return localStorage.getItem('token') }
-async function api(path, opts = {}) {
-  const res = await fetch(path, { headers: { 'Content-Type': 'application/json', Authorization: token() }, ...opts })
-  if (!res.ok) throw new Error(await res.text())
-  return res.json()
-}
 async function fetchBrokers() {
   brokers.value = await api('/api/brokers')
-  if (brokers.value.length > 0 && !selectedId.value && !props.broker) {
+  if (brokers.value.length > 0 && !selectedId.value) {
     selectedId.value = String(brokers.value[0].id)
   }
 }
@@ -33,11 +28,10 @@ async function fetchData() {
   catch (e) { error.value = e.message }
   finally { loading.value = false }
 }
-watch(selectedId, () => { if (brokers.value.length) fetchData() })
+watch(selectedId, () => { if (selectedId.value) fetchData() })
 onMounted(async () => {
   await fetchBrokers()
-  if (props.broker) await fetchData()
-  else if (selectedId.value) fetchData()
+  if (props.broker) selectedId.value = String(props.broker.id)
 })
 </script>
 

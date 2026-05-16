@@ -1,5 +1,6 @@
 <script setup>
 import { ref, watch } from 'vue'
+import { api } from '../../utils/api.js'
 
 const props = defineProps({ show: Boolean, broker: Object })
 const emit = defineEmits(['close'])
@@ -20,17 +21,6 @@ const squareoff = ref(0)
 const stoploss = ref(0)
 const submitting = ref(false)
 const error = ref('')
-
-function token() { return localStorage.getItem('token') }
-
-async function api(path, opts = {}) {
-  const res = await fetch(path, {
-    headers: { 'Content-Type': 'application/json', Authorization: token() },
-    ...opts,
-  })
-  if (!res.ok) throw new Error(await res.text())
-  return res.json()
-}
 
 watch(() => props.show, (val) => {
   if (!val) return

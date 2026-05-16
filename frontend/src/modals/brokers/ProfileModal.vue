@@ -1,5 +1,6 @@
 <script setup>
 import { ref, watch } from 'vue'
+import { api } from '../../utils/api.js'
 
 const props = defineProps({ show: Boolean, broker: Object })
 const emit = defineEmits(['close'])
@@ -9,12 +10,6 @@ const loading = ref(false)
 const error = ref('')
 
 function cap(str) { if (!str) return ''; return str.replace(/\b\w/g, c => c.toUpperCase()) }
-function token() { return localStorage.getItem('token') }
-async function api(path, opts = {}) {
-  const res = await fetch(path, { headers: { 'Content-Type': 'application/json', Authorization: token() }, ...opts })
-  if (!res.ok) throw new Error(await res.text())
-  return res.json()
-}
 watch(() => props.show, async (val) => {
   if (!val || !props.broker) return
   loading.value = true; error.value = ''; data.value = null

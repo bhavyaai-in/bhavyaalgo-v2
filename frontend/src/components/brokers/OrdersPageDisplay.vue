@@ -1,6 +1,7 @@
 <script setup>
 import { ref, computed, onMounted, watch } from 'vue'
 import { useRoute } from 'vue-router'
+import { api } from '../../utils/api.js'
 import OrdersTable from './OrdersTable.vue'
 
 const props = defineProps({ data: null, broker: null })
@@ -14,19 +15,6 @@ const error = ref('')
 const displayOrders = computed(() => props.data || orders.value)
 const editing = ref(null)
 const editForm = ref({ price: '', quantity: '' })
-
-function token() {
-  return localStorage.getItem('token')
-}
-
-async function api(path, opts = {}) {
-  const res = await fetch(path, {
-    headers: { 'Content-Type': 'application/json', Authorization: token() },
-    ...opts,
-  })
-  if (!res.ok) throw new Error(await res.text())
-  return res.json()
-}
 
 async function fetchBrokers() {
   brokers.value = await api('/api/brokers')
