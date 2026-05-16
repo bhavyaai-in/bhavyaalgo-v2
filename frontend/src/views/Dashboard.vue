@@ -3,10 +3,10 @@ import { computed } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useAuth } from '../stores/auth.js'
 import Brokers from './Brokers.vue'
-import HoldingsPage from '../modals/brokers/HoldingsPageDisplay.vue'
-import OrdersPage from '../modals/brokers/OrdersPageDisplay.vue'
-import PositionsPage from '../modals/brokers/PositionsPageDisplay.vue'
-import MarginPage from '../modals/brokers/MarginPageDisplay.vue'
+import HoldingsPage from '../components/brokers/HoldingsPageDisplay.vue'
+import OrdersPage from '../components/brokers/OrdersPageDisplay.vue'
+import PositionsPage from '../components/brokers/PositionsPageDisplay.vue'
+import MarginPage from '../components/brokers/MarginPageDisplay.vue'
 
 const router = useRouter()
 const route = useRoute()

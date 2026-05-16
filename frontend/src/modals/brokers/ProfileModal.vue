@@ -56,15 +56,5 @@ function flatRows(obj) {
 </template>
 
 <style scoped>
-.modal-overlay { position:fixed; inset:0; background:rgba(0,0,0,.4); display:flex; justify-content:center; align-items:center; z-index:100; }
-.modal-box { background:hsl(var(--card)); border-radius:var(--radius); padding:1.5rem; width:90%; max-width:480px; max-height:80vh; overflow-y:auto; box-shadow:0 4px 24px rgba(0,0,0,.12); }
-.modal-box h3 { margin:0 0 1rem; font-size:var(--font-base); }
-.state-msg { text-align:center; padding:2rem; color:hsl(var(--muted-foreground)); }
-.state-msg.error { color:hsl(var(--destructive)); }
-.table-wrap { overflow-x:auto; }
-.data-table { width:100%; border-collapse:collapse; font-size:var(--font-sm); }
-.data-table td { padding:.5rem .75rem; border-bottom:1px solid hsl(var(--border)); }
-.data-table .pkey { font-weight:600; color:hsl(var(--foreground)); width:40%; }
-.data-table td:last-child { color:hsl(var(--muted-foreground)); }
-.close-btn { display:block; margin:1rem auto 0; padding:.5rem 1.5rem; border:1px solid hsl(var(--border)); background:hsl(var(--card)); border-radius:var(--radius); cursor:pointer; font-weight:500; }
+.modal-box { max-width:480px; }
 </style>

@@ -129,9 +129,7 @@ function cap(str) { if (!str) return ''; return str.replace(/\b\w/g, c => c.toUp
 </template>
 
 <style scoped>
-.modal-overlay { position:fixed; inset:0; background:rgba(0,0,0,.4); display:flex; justify-content:center; align-items:center; z-index:100; }
-.modal-box { background:hsl(var(--card)); border-radius:var(--radius); padding:1.5rem; width:90%; max-width:480px; max-height:80vh; overflow-y:auto; box-shadow:0 4px 24px rgba(0,0,0,.12); }
-.modal-box h3 { margin:0 0 1rem; font-size:var(--font-base); }
+.modal-box { max-width:480px; }
 .field-grid { display:grid; grid-template-columns:1fr 1fr; gap:.6rem; }
 .field-grid label { display:flex; flex-direction:column; gap:.2rem; font-size:var(--font-sm); color:hsl(var(--foreground)); }
 .field-grid input, .field-grid select { padding:.45rem .6rem; border:1px solid hsl(var(--input)); border-radius:var(--radius); font-size:var(--font-sm); }

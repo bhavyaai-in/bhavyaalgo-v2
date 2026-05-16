@@ -1,12 +1,13 @@
 <script setup>
 import { ref, onMounted } from 'vue'
 import BrokerFormModal from '../modals/brokers/BrokerFormModal.vue'
-import ProfileModal from '../modals/brokers/ProfileModal.vue'
-import OrdersModal from '../modals/brokers/OrdersModal.vue'
-import HoldingsModal from '../modals/brokers/HoldingsModal.vue'
-import PositionsModal from '../modals/brokers/PositionsModal.vue'
-import MarginModal from '../modals/brokers/MarginModal.vue'
+import BrokerModal from '../modals/brokers/BrokerModal.vue'
 import PlaceOrderModal from '../modals/brokers/PlaceOrderModal.vue'
+import ProfileModal from '../modals/brokers/ProfileModal.vue'
+import OrdersPageDisplay from '../components/brokers/OrdersPageDisplay.vue'
+import HoldingsPageDisplay from '../components/brokers/HoldingsPageDisplay.vue'
+import PositionsPageDisplay from '../components/brokers/PositionsPageDisplay.vue'
+import MarginPageDisplay from '../components/brokers/MarginPageDisplay.vue'
 
 
 const brokers = ref([])
@@ -222,12 +223,20 @@ onMounted(async () => {
       </div>
     </div>
 
-    <!-- Dedicated Modals -->
+    <!-- Generic Modals -->
+    <BrokerModal :show="activeModal === 'orders'" title="Orders" :broker="modalBroker" @close="closeModal">
+      <OrdersPageDisplay :broker="modalBroker" />
+    </BrokerModal>
+    <BrokerModal :show="activeModal === 'holdings'" title="Holdings" :broker="modalBroker" @close="closeModal">
+      <HoldingsPageDisplay :broker="modalBroker" />
+    </BrokerModal>
+    <BrokerModal :show="activeModal === 'positions'" title="Positions" :broker="modalBroker" @close="closeModal">
+      <PositionsPageDisplay :broker="modalBroker" />
+    </BrokerModal>
+    <BrokerModal :show="activeModal === 'margin'" title="Margin" :broker="modalBroker" @close="closeModal">
+      <MarginPageDisplay :broker="modalBroker" />
+    </BrokerModal>
     <ProfileModal :show="activeModal === 'profile'" :broker="modalBroker" @close="closeModal" />
-    <OrdersModal :show="activeModal === 'orders'" :broker="modalBroker" @close="closeModal" />
-    <HoldingsModal :show="activeModal === 'holdings'" :broker="modalBroker" @close="closeModal" />
-    <PositionsModal :show="activeModal === 'positions'" :broker="modalBroker" @close="closeModal" />
-    <MarginModal :show="activeModal === 'margin'" :broker="modalBroker" @close="closeModal" />
     <PlaceOrderModal :show="activeModal === 'place-order'" :broker="modalBroker" @close="closeModal" />
   </div>
 </template>

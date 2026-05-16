@@ -1,0 +1,33 @@
+/* --- Broker page common --- */
+.page { padding: 1rem 0; }
+.page header { display:flex; justify-content:space-between; align-items:center; margin-bottom:1.25rem; }
+.page header h2 { margin:0; }
+
+.broker-select {
+  padding:.5rem 1rem; border:1px solid hsl(var(--primary)); border-radius:var(--radius);
+  font-size:var(--font-sm); background:hsl(var(--primary)); color:hsl(var(--primary-foreground));
+  cursor:pointer; font-weight:500;
+}
+
+.state-msg { text-align:center; padding:2rem; color:hsl(var(--muted-foreground)); }
+.state-msg.error { color:hsl(var(--destructive)); }
+
+.table-wrap { overflow-x:auto; }
+
+.data-table { width:100%; border-collapse:collapse; font-size:var(--font-sm); }
+.data-table th, .data-table td {
+  padding:.4rem .5rem; border-bottom:1px solid hsl(var(--border)); text-align:left; white-space:nowrap;
+}
+.data-table th { font-weight:600; color:hsl(var(--foreground)); position:sticky; top:0; background:hsl(var(--card)); }
+.data-table td { color:hsl(var(--muted-foreground)); }
+.data-table td.negative { color:hsl(var(--destructive)); }
+.data-table .pkey { font-weight:600; color:hsl(var(--foreground)); width:40%; }
+.data-table.kv td { padding:.5rem .75rem; }
+.data-table.kv td:last-child { color:hsl(var(--muted-foreground)); }
+
+.close-btn { display:block; margin:1rem auto 0; padding:.5rem 1.5rem; border:1px solid hsl(var(--border)); background:hsl(var(--card)); border-radius:var(--radius); cursor:pointer; font-weight:500; }
+
+/* --- Modals --- */
+.modal-overlay { position:fixed; inset:0; background:rgba(0,0,0,.4); display:flex; justify-content:center; align-items:center; z-index:100; }
+.modal-box { background:hsl(var(--card)); border-radius:var(--radius); padding:1.5rem; width:90%; max-width:700px; max-height:80vh; overflow-y:auto; box-shadow:0 4px 24px rgba(0,0,0,.12); }
+.modal-box h3 { margin:0 0 1rem; font-size:var(--font-base); }
