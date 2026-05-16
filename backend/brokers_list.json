@@ -1,0 +1,4 @@
+[
+    {"name":"angel","broker_image_url":"imgages/broker_logos/angel.png","is_active":true},
+    {"name":"aliceblue","broker_image_url":"imgages/broker_logos/aliceblue.png","is_active":true}
+]
