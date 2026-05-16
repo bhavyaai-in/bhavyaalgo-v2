@@ -19,6 +19,7 @@ func (a *App) RegisterBrokerDataRoutes(mux *http.ServeMux) {
 	mux.HandleFunc("GET /api/broker-margin/{id}", a.authMiddleware(a.handleBrokerMargin))
 	mux.HandleFunc("POST /api/broker-cancel-order", a.authMiddleware(a.handleBrokerCancelOrder))
 	mux.HandleFunc("POST /api/broker-modify-order", a.authMiddleware(a.handleBrokerModifyOrder))
+	mux.HandleFunc("POST /api/broker-place-order", a.authMiddleware(a.handleBrokerPlaceOrder))
 }
 
 func (a *App) brokerClient(id int64) (*angel.Client, string, string, error) {
@@ -143,6 +144,37 @@ func checkAngelError(result map[string]any) error {
 		return fmt.Errorf("%s: %s", code, msg)
 	}
 	return nil
+}
+
+func (a *App) handleBrokerPlaceOrder(w http.ResponseWriter, r *http.Request) {
+	var req struct {
+		BrokerID int64          `json:"broker_id"`
+		Data     map[string]any `json:"data"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "invalid request"})
+		return
+	}
+	client, token, name, err := a.brokerClient(req.BrokerID)
+	if err != nil {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": err.Error()})
+		return
+	}
+	switch name {
+	case "angel":
+		result, err := client.PlaceOrder(token, req.Data)
+		if err != nil {
+			writeJSON(w, http.StatusBadGateway, map[string]string{"error": err.Error()})
+			return
+		}
+		if err := checkAngelError(result); err != nil {
+			writeJSON(w, http.StatusBadGateway, map[string]string{"error": err.Error()})
+			return
+		}
+		writeJSON(w, http.StatusOK, result)
+	default:
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "unsupported broker"})
+	}
 }
 
 func (a *App) handleBrokerModifyOrder(w http.ResponseWriter, r *http.Request) {
