@@ -1,4 +1,5 @@
 import { createApp } from 'vue'
+import { createPinia } from 'pinia'
 import App from '../App.vue'
 import router from '../router'
 import { setRouter } from '../utils/api.js'
@@ -6,4 +7,4 @@ import './style.css'
 import './broker-common.css'
 
 setRouter(router)
-createApp(App).use(router).mount('#app')
+createApp(App).use(createPinia()).use(router).mount('#app')

@@ -5,7 +5,7 @@ import (
 	"os"
 	"strconv"
 
-	"bhavyaaialgo/backend/angel"
+	"bhavyaaialgo/backend/brokers/angel"
 )
 
 func (a *App) RegisterBrokerProfileRoutes(mux *http.ServeMux) {
@@ -37,8 +37,7 @@ func (a *App) handleBrokerProfile(w http.ResponseWriter, r *http.Request) {
 
 	switch brokerName {
 	case "angel":
-		client := angel.NewClient(apiKey)
-		data, err := client.GetProfileRaw(authToken)
+		data, err := angel.FetchProfileRaw(authToken, apiKey)
 		if err != nil {
 			writeJSON(w, http.StatusBadGateway, map[string]string{"error": err.Error()})
 			return

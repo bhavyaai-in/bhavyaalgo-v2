@@ -61,6 +61,14 @@ func (c *Client) GetProfileRaw(authToken string) (map[string]any, error) {
 	return raw, nil
 }
 
+func FetchProfile(authToken, apiKey string) (string, error) {
+	return NewClient(apiKey).GetProfile(authToken)
+}
+
+func FetchProfileRaw(authToken, apiKey string) (map[string]any, error) {
+	return NewClient(apiKey).GetProfileRaw(authToken)
+}
+
 func extractProfileName(d *profileData) (string, string, string) {
 	if d == nil {
 		return "", "", ""

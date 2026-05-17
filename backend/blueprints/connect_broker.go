@@ -7,7 +7,7 @@ import (
 	"os"
 	"strings"
 
-	"bhavyaaialgo/backend/angel"
+	"bhavyaaialgo/backend/brokers/angel"
 
 	"github.com/xlzd/gotp"
 )
@@ -57,11 +57,15 @@ func (a *App) handleConnectBroker(w http.ResponseWriter, r *http.Request) {
 	}
 
 	var authToken, feedToken, profileName string
+	apiKey := os.Getenv("BROKER_API_KEY")
+	if apiKey == "" {
+		apiKey = b.BrokerAPI
+	}
 	switch b.BrokerName {
 	case "angel":
-		authToken, feedToken, _, err = authenticateAngel(b, totp)
+		authToken, feedToken, _, err = angel.AuthenticateBroker(b.BrokerUserid, b.BrokerPin, totp, apiKey)
 		if err == nil {
-			profileName, err = fetchProfile(b.BrokerName, authToken, b.BrokerAPI)
+			profileName, err = angel.FetchProfile(authToken, apiKey)
 		}
 	default:
 		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "unsupported broker: " + b.BrokerName})
@@ -125,25 +129,4 @@ func safeSuffix(s string, n int) string {
 	return "..." + s[len(s)-n:]
 }
 
-func authenticateAngel(b brokerAuthRow, totp string) (string, string, string, error) {
-	apiKey := os.Getenv("BROKER_API_KEY")
-	if apiKey == "" {
-		apiKey = b.BrokerAPI
-	}
-	client := angel.NewClient(apiKey)
-	return client.Authenticate(b.BrokerUserid, b.BrokerPin, totp)
-}
 
-func fetchProfile(brokerName, authToken, brokerAPIKey string) (string, error) {
-	apiKey := os.Getenv("BROKER_API_KEY")
-	if apiKey == "" {
-		apiKey = brokerAPIKey
-	}
-	switch brokerName {
-	case "angel":
-		client := angel.NewClient(apiKey)
-		return client.GetProfile(authToken)
-	default:
-		return "", nil
-	}
-}

@@ -1,29 +1,37 @@
 package main
 
 import (
-	"bufio"
+	"context"
+	"database/sql"
 	"encoding/json"
 	"log"
 	"net/http"
 	"os"
 	"path/filepath"
-	"strings"
 
 	"bhavyaaialgo/backend/blueprints"
+	"bhavyaaialgo/backend/db/gen"
+	"bhavyaaialgo/backend/internal/config"
+	"bhavyaaialgo/backend/internal/service"
+	"bhavyaaialgo/backend/internal/setup"
+	_ "modernc.org/sqlite"
 )
 
+var db *sql.DB
+var Q *gen.Queries
+
 func main() {
-	loadEnv()
+	cfg, err := config.Load()
+	if err != nil {
+		log.Fatalf("config: %v", err)
+	}
 
 	initDB()
-
-	adminEmail := os.Getenv("ADMIN_EMAIL")
-	adminPassword := os.Getenv("ADMIN_PASSWORD")
-
-	port := os.Getenv("PORT")
-	if port == "" {
-		port = "8080"
-	}
+	ctx := context.Background()
+	setup.SeedFromFile(ctx, Q)
+	go setup.DownloadMasterContract(ctx, Q)
+	adminEmail := cfg.AdminEmail
+	adminPassword := cfg.AdminPassword
 
 	mux := http.NewServeMux()
 
@@ -39,7 +47,7 @@ func main() {
 	mux.HandleFunc("GET /api/broker-list", authMiddleware(handleListBrokerList))
 	mux.HandleFunc("GET /api/broker-columns", authMiddleware(handleBrokerColumns))
 
-	app := &blueprints.App{DB: db, Sessions: sessions}
+	app := &blueprints.App{DB: db, Q: Q, Sessions: service.Sessions}
 	app.RegisterConnectBrokerRoutes(mux)
 	app.RegisterBrokerProfileRoutes(mux)
 	app.RegisterBrokerDataRoutes(mux)
@@ -53,36 +61,35 @@ func main() {
 		})
 	}
 
-	addr := ":" + port
+	addr := ":" + cfg.Port
 	log.Printf("Server starting on http://localhost%s", addr)
 	if err := http.ListenAndServe(addr, mux); err != nil {
 		log.Fatal(err)
 	}
 }
 
-func loadEnv() {
-	candidates := []string{".env", "../.env"}
-	for _, path := range candidates {
-		f, err := os.Open(path)
-		if err != nil {
-			continue
+func initDB() {
+	var err error
+	db, err = sql.Open("sqlite", "data.db")
+	if err != nil {
+		log.Fatalf("failed to open db: %v", err)
+	}
+	if err = db.Ping(); err != nil {
+		log.Fatalf("failed to ping db: %v", err)
+	}
+	Q = gen.New(db)
+	createTables()
+}
+
+func createTables() {
+	for _, sql := range []string{masterContractsTableSQL, systemSettingsTableSQL, brokerListTableSQL, brokerColumnsTableSQL, brokersTableSQL} {
+		if _, err := db.Exec(sql); err != nil {
+			log.Fatalf("create table: %v", err)
 		}
-		defer f.Close()
-		scanner := bufio.NewScanner(f)
-		for scanner.Scan() {
-			line := strings.TrimSpace(scanner.Text())
-			if line == "" || strings.HasPrefix(line, "#") {
-				continue
-			}
-			parts := strings.SplitN(line, "=", 2)
-			if len(parts) != 2 {
-				continue
-			}
-			os.Setenv(strings.TrimSpace(parts[0]), strings.TrimSpace(parts[1]))
-		}
-		break
 	}
 }
+
+
 
 func writeJSON(w http.ResponseWriter, status int, v any) {
 	w.Header().Set("Content-Type", "application/json")
@@ -93,11 +100,7 @@ func writeJSON(w http.ResponseWriter, status int, v any) {
 }
 
 func findStaticDir() string {
-	candidates := []string{
-		"../frontend/dist",
-		"./frontend/dist",
-	}
-	for _, d := range candidates {
+	for _, d := range []string{"../frontend/dist", "./frontend/dist"} {
 		abs, _ := filepath.Abs(d)
 		if info, err := os.Stat(abs); err == nil && info.IsDir() {
 			return abs
@@ -105,3 +108,72 @@ func findStaticDir() string {
 	}
 	return ""
 }
+
+const masterContractsTableSQL = `
+CREATE TABLE IF NOT EXISTS master_contracts (
+	id INTEGER PRIMARY KEY AUTOINCREMENT,
+	symbol TEXT NOT NULL,
+	brsymbol TEXT NOT NULL DEFAULT '',
+	name TEXT NOT NULL DEFAULT '',
+	exchange TEXT NOT NULL DEFAULT '',
+	brexchange TEXT NOT NULL DEFAULT '',
+	token TEXT NOT NULL DEFAULT '',
+	expiry TEXT NOT NULL DEFAULT '',
+	strike REAL NOT NULL DEFAULT 0,
+	lotsize INTEGER NOT NULL DEFAULT 0,
+	instrumenttype TEXT NOT NULL DEFAULT '',
+	tick_size REAL NOT NULL DEFAULT 0,
+	created_at TEXT NOT NULL DEFAULT (datetime('now','localtime'))
+);
+CREATE INDEX IF NOT EXISTS idx_mc_symbol ON master_contracts(symbol);
+CREATE INDEX IF NOT EXISTS idx_mc_exchange ON master_contracts(exchange);`
+
+const systemSettingsTableSQL = `
+CREATE TABLE IF NOT EXISTS system_settings (
+	key TEXT PRIMARY KEY,
+	value TEXT NOT NULL DEFAULT '',
+	updated_at TEXT NOT NULL DEFAULT (datetime('now','localtime'))
+)`
+
+const brokerColumnsTableSQL = `
+CREATE TABLE IF NOT EXISTS broker_columns (
+	id INTEGER PRIMARY KEY AUTOINCREMENT,
+	broker_name TEXT NOT NULL UNIQUE,
+	columns_json TEXT NOT NULL DEFAULT '[]',
+	created_at TEXT NOT NULL DEFAULT (datetime('now','localtime')),
+	updated_at TEXT NOT NULL DEFAULT (datetime('now','localtime'))
+)`
+
+const brokerListTableSQL = `
+CREATE TABLE IF NOT EXISTS broker_list (
+	id INTEGER PRIMARY KEY AUTOINCREMENT,
+	name TEXT NOT NULL UNIQUE,
+	broker_image_url TEXT NOT NULL DEFAULT '',
+	is_active INTEGER NOT NULL DEFAULT 1,
+	message TEXT NOT NULL DEFAULT '',
+	created_at TEXT NOT NULL DEFAULT (datetime('now','localtime')),
+	updated_at TEXT NOT NULL DEFAULT (datetime('now','localtime'))
+)`
+
+const brokersTableSQL = `
+CREATE TABLE IF NOT EXISTS brokers (
+	id INTEGER PRIMARY KEY AUTOINCREMENT,
+	friendly_name TEXT NOT NULL DEFAULT '',
+	broker_userid TEXT NOT NULL,
+	broker_password TEXT NOT NULL,
+	broker_pin TEXT NOT NULL,
+	broker_qr_key TEXT NOT NULL DEFAULT '',
+	broker_api TEXT NOT NULL DEFAULT '',
+	broker_api_secret TEXT NOT NULL DEFAULT '',
+	broker_name TEXT NOT NULL,
+	token_status TEXT NOT NULL DEFAULT '',
+	broker_token TEXT NOT NULL DEFAULT '',
+	broker_token_date TEXT NOT NULL DEFAULT '2000-01-01 00:00:00',
+	feed_token TEXT NOT NULL DEFAULT '',
+	is_active INTEGER NOT NULL DEFAULT 0,
+	is_autologin INTEGER NOT NULL DEFAULT 0,
+	is_disabled INTEGER NOT NULL DEFAULT 0,
+	message TEXT NOT NULL DEFAULT '',
+	created_at TEXT NOT NULL DEFAULT (datetime('now','localtime')),
+	updated_at TEXT NOT NULL DEFAULT (datetime('now','localtime'))
+)`

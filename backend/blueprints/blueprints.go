@@ -6,6 +6,8 @@ import (
 	"log"
 	"net/http"
 	"runtime/debug"
+
+	"bhavyaaialgo/backend/db/gen"
 )
 
 type SessionStore interface {
@@ -14,6 +16,7 @@ type SessionStore interface {
 
 type App struct {
 	DB       *sql.DB
+	Q        *gen.Queries
 	Sessions SessionStore
 }
 

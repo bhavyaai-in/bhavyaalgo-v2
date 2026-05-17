@@ -1,4 +1,0 @@
-{
-    "angel": ["friendly_name", "broker_userid", "broker_pin","broker_qr_key","broker_api","broker_api_secret"],
-    "aliceblue": ["friendly_name", "broker_userid", "broker_password","broker_qr_key","broker_api","broker_api_secret"]
-}

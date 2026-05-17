@@ -55,3 +55,8 @@ func (c *Client) Authenticate(clientCode, brokerPin, totp string) (string, strin
 
 	return resp.Data.JWTToken, resp.Data.FeedToken, profileName, nil
 }
+
+func AuthenticateBroker(userID, pin, totp, apiKey string) (string, string, string, error) {
+	client := NewClient(apiKey)
+	return client.Authenticate(userID, pin, totp)
+}

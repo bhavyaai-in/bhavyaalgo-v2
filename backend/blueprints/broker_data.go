@@ -7,7 +7,7 @@ import (
 	"net/http"
 	"strconv"
 
-	"bhavyaaialgo/backend/angel"
+	"bhavyaaialgo/backend/brokers/angel"
 )
 
 var errNoToken = errors.New("broker not connected")

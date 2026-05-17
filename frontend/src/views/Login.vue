@@ -1,10 +1,10 @@
 <script setup>
 import { ref } from 'vue'
 import { useRouter } from 'vue-router'
-import { useAuth } from '../stores/auth.js'
+import { useAuthStore } from '../stores/auth.js'
 
 const router = useRouter()
-const { login } = useAuth()
+const auth = useAuthStore()
 
 const email = ref('admin@example.com')
 const password = ref('password123')
@@ -15,7 +15,7 @@ async function handleSubmit() {
   error.value = ''
   submitting.value = true
   try {
-    await login(email.value, password.value)
+    await auth.login(email.value, password.value)
     router.push('/')
   } catch (e) {
     error.value = e.message

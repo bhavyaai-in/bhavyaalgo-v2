@@ -1,11 +1,61 @@
 package main
 
 import (
+	"context"
 	"encoding/json"
 	"net/http"
-	"os"
 	"strconv"
+
+	"bhavyaaialgo/backend/db/gen"
+	"bhavyaaialgo/backend/internal/service"
 )
+
+// BrokerResponse is the public API response (token fields excluded)
+type BrokerResponse struct {
+	ID              int64  `json:"id"`
+	FriendlyName    string `json:"friendly_name"`
+	BrokerUserid    string `json:"broker_userid"`
+	BrokerPassword  string `json:"broker_password"`
+	BrokerPin       string `json:"broker_pin"`
+	BrokerQrKey     string `json:"broker_qr_key"`
+	BrokerAPI       string `json:"broker_api"`
+	BrokerAPISecret string `json:"broker_api_secret"`
+	BrokerName      string `json:"broker_name"`
+	TokenStatus     string `json:"token_status"`
+	BrokerTokenDate string `json:"broker_token_date"`
+	IsActive        bool   `json:"is_active"`
+	IsAutologin     bool   `json:"is_autologin"`
+	IsDisabled      bool   `json:"is_disabled"`
+	FeedToken       string `json:"-"`
+	BrokerToken     string `json:"-"`
+	Message         string `json:"message"`
+	CreatedAt       string `json:"created_at"`
+	UpdatedAt       string `json:"updated_at"`
+}
+
+func brokerToResponse(b gen.Broker) BrokerResponse {
+	return BrokerResponse{
+		ID:              b.ID,
+		FriendlyName:    b.FriendlyName,
+		BrokerUserid:    b.BrokerUserid,
+		BrokerPassword:  b.BrokerPassword,
+		BrokerPin:       b.BrokerPin,
+		BrokerQrKey:     b.BrokerQrKey,
+		BrokerAPI:       b.BrokerApi,
+		BrokerAPISecret: b.BrokerApiSecret,
+		BrokerName:      b.BrokerName,
+		TokenStatus:     b.TokenStatus,
+		BrokerTokenDate: b.BrokerTokenDate,
+		IsActive:        b.IsActive != 0,
+		IsAutologin:     b.IsAutologin != 0,
+		IsDisabled:      b.IsDisabled != 0,
+		Message:         b.Message,
+		FeedToken:       b.FeedToken,
+		BrokerToken:     b.BrokerToken,
+		CreatedAt:       b.CreatedAt,
+		UpdatedAt:       b.UpdatedAt,
+	}
+}
 
 func handleLogin(email, password string) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
@@ -21,7 +71,7 @@ func handleLogin(email, password string) http.HandlerFunc {
 			writeJSON(w, http.StatusUnauthorized, map[string]string{"error": "invalid credentials"})
 			return
 		}
-		token := sessions.Create(creds.Email)
+		token := service.Sessions.Create(creds.Email)
 		writeJSON(w, http.StatusOK, map[string]string{"token": token})
 	}
 }
@@ -32,7 +82,7 @@ func handleMe(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusUnauthorized, map[string]string{"error": "missing token"})
 		return
 	}
-	email, ok := sessions.Get(token)
+	email, ok := service.Sessions.Get(token)
 	if !ok {
 		writeJSON(w, http.StatusUnauthorized, map[string]string{"error": "invalid token"})
 		return
@@ -43,40 +93,77 @@ func handleMe(w http.ResponseWriter, r *http.Request) {
 func handleLogout(w http.ResponseWriter, r *http.Request) {
 	token := r.Header.Get("Authorization")
 	if token != "" {
-		sessions.Delete(token)
+		service.Sessions.Delete(token)
 	}
 	writeJSON(w, http.StatusOK, map[string]string{"status": "logged out"})
 }
 
 func handleListBrokers(w http.ResponseWriter, r *http.Request) {
-	brokers, err := listBrokers()
+	brokers, err := Q.ListBrokers(context.Background())
 	if err != nil {
 		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
 		return
 	}
-	if brokers == nil {
-		brokers = []Broker{}
+	resp := make([]BrokerResponse, 0, len(brokers))
+	for _, b := range brokers {
+		resp = append(resp, brokerToResponse(b))
 	}
-	writeJSON(w, http.StatusOK, brokers)
+	writeJSON(w, http.StatusOK, resp)
 }
 
 func handleCreateBroker(w http.ResponseWriter, r *http.Request) {
-	var b Broker
-	if err := json.NewDecoder(r.Body).Decode(&b); err != nil {
+	var req struct {
+		FriendlyName    string `json:"friendly_name"`
+		BrokerUserid    string `json:"broker_userid"`
+		BrokerPassword  string `json:"broker_password"`
+		BrokerPin       string `json:"broker_pin"`
+		BrokerQrKey     string `json:"broker_qr_key"`
+		BrokerAPI       string `json:"broker_api"`
+		BrokerAPISecret string `json:"broker_api_secret"`
+		BrokerName      string `json:"broker_name"`
+		IsActive        bool   `json:"is_active"`
+		IsAutologin     bool   `json:"is_autologin"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "invalid request"})
 		return
 	}
-	id, err := createBroker(&b)
+	active := int64(0)
+	if req.IsActive {
+		active = 1
+	}
+	autologin := int64(0)
+	if req.IsAutologin {
+		autologin = 1
+	}
+	id, err := Q.CreateBroker(context.Background(), gen.CreateBrokerParams{
+		FriendlyName:    req.FriendlyName,
+		BrokerUserid:    req.BrokerUserid,
+		BrokerPassword:  req.BrokerPassword,
+		BrokerPin:       req.BrokerPin,
+		BrokerQrKey:     req.BrokerQrKey,
+		BrokerApi:       req.BrokerAPI,
+		BrokerApiSecret: req.BrokerAPISecret,
+		BrokerName:      req.BrokerName,
+		IsActive:        active,
+		IsAutologin:     autologin,
+		TokenStatus:     "",
+		BrokerToken:     "",
+		BrokerTokenDate: "2000-01-01 00:00:00",
+		FeedToken:       "",
+		IsDisabled:      0,
+		Message:         "",
+	})
 	if err != nil {
 		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
 		return
 	}
-	created, err := getBroker(id)
+	b, err := Q.GetBroker(context.Background(), id)
 	if err != nil {
 		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
 		return
 	}
-	writeJSON(w, http.StatusCreated, created)
+	writeJSON(w, http.StatusCreated, brokerToResponse(b))
 }
 
 func handleGetBroker(w http.ResponseWriter, r *http.Request) {
@@ -86,12 +173,12 @@ func handleGetBroker(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "invalid id"})
 		return
 	}
-	b, err := getBroker(id)
+	b, err := Q.GetBroker(context.Background(), id)
 	if err != nil {
 		writeJSON(w, http.StatusNotFound, map[string]string{"error": "not found"})
 		return
 	}
-	writeJSON(w, http.StatusOK, b)
+	writeJSON(w, http.StatusOK, brokerToResponse(b))
 }
 
 func handleUpdateBroker(w http.ResponseWriter, r *http.Request) {
@@ -101,47 +188,54 @@ func handleUpdateBroker(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "invalid id"})
 		return
 	}
-	var b Broker
-	if err := json.NewDecoder(r.Body).Decode(&b); err != nil {
+	var req struct {
+		FriendlyName    string `json:"friendly_name"`
+		BrokerUserid    string `json:"broker_userid"`
+		BrokerPassword  string `json:"broker_password"`
+		BrokerPin       string `json:"broker_pin"`
+		BrokerQrKey     string `json:"broker_qr_key"`
+		BrokerAPI       string `json:"broker_api"`
+		BrokerAPISecret string `json:"broker_api_secret"`
+		BrokerName      string `json:"broker_name"`
+		IsActive        bool   `json:"is_active"`
+		IsAutologin     bool   `json:"is_autologin"`
+		IsDisabled      bool   `json:"is_disabled"`
+		Message         string `json:"message"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "invalid request"})
 		return
 	}
-	if err := updateBroker(id, &b); err != nil {
-		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
+	existing, err := Q.GetBroker(context.Background(), id)
+	if err != nil {
+		writeJSON(w, http.StatusNotFound, map[string]string{"error": "not found"})
 		return
 	}
-	updated, err := getBroker(id)
+	err = Q.UpdateBroker(context.Background(), gen.UpdateBrokerParams{
+		FriendlyName:    req.FriendlyName,
+		BrokerUserid:    req.BrokerUserid,
+		BrokerPassword:  req.BrokerPassword,
+		BrokerPin:       req.BrokerPin,
+		BrokerQrKey:     req.BrokerQrKey,
+		BrokerApi:       req.BrokerAPI,
+		BrokerApiSecret: req.BrokerAPISecret,
+		BrokerName:      req.BrokerName,
+		TokenStatus:     existing.TokenStatus,
+		BrokerToken:     existing.BrokerToken,
+		BrokerTokenDate: existing.BrokerTokenDate,
+		FeedToken:       existing.FeedToken,
+		IsActive:        boolToInt64(req.IsActive),
+		IsAutologin:     boolToInt64(req.IsAutologin),
+		IsDisabled:      boolToInt64(req.IsDisabled),
+		Message:         req.Message,
+		ID:              id,
+	})
 	if err != nil {
 		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
 		return
 	}
-	writeJSON(w, http.StatusOK, updated)
-}
-
-func handleBrokerColumns(w http.ResponseWriter, r *http.Request) {
-	data, err := os.ReadFile("broker_columns.json")
-	if err != nil {
-		writeJSON(w, http.StatusNotFound, map[string]string{"error": "columns not found"})
-		return
-	}
-	var columns map[string][]string
-	if err := json.Unmarshal(data, &columns); err != nil {
-		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "invalid columns file"})
-		return
-	}
-	writeJSON(w, http.StatusOK, columns)
-}
-
-func handleListBrokerList(w http.ResponseWriter, r *http.Request) {
-	entries, err := listBrokerList()
-	if err != nil {
-		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
-		return
-	}
-	if entries == nil {
-		entries = []BrokerListEntry{}
-	}
-	writeJSON(w, http.StatusOK, entries)
+	updated, _ := Q.GetBroker(context.Background(), id)
+	writeJSON(w, http.StatusOK, brokerToResponse(updated))
 }
 
 func handleDeleteBroker(w http.ResponseWriter, r *http.Request) {
@@ -151,9 +245,65 @@ func handleDeleteBroker(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "invalid id"})
 		return
 	}
-	if err := deleteBroker(id); err != nil {
+	if err := Q.DeleteBroker(context.Background(), id); err != nil {
 		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
 		return
 	}
 	writeJSON(w, http.StatusOK, map[string]string{"status": "deleted"})
+}
+
+func handleListBrokerList(w http.ResponseWriter, r *http.Request) {
+	entries, err := Q.ListBrokerList(context.Background())
+	if err != nil {
+		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
+		return
+	}
+	type listEntry struct {
+		ID             int64  `json:"id"`
+		Name           string `json:"broker_name"`
+		BrokerImageURL string `json:"broker_image_url"`
+		IsActive       bool   `json:"is_active"`
+		Message        string `json:"message"`
+		CreatedAt      string `json:"created_at"`
+		UpdatedAt      string `json:"updated_at"`
+	}
+	resp := make([]listEntry, 0, len(entries))
+	for _, e := range entries {
+		resp = append(resp, listEntry{
+			ID:             e.ID,
+			Name:           e.Name,
+			BrokerImageURL: e.BrokerImageUrl,
+			IsActive:       e.IsActive != 0,
+			Message:        e.Message,
+			CreatedAt:      e.CreatedAt,
+			UpdatedAt:      e.UpdatedAt,
+		})
+	}
+	writeJSON(w, http.StatusOK, resp)
+}
+
+func handleBrokerColumns(w http.ResponseWriter, r *http.Request) {
+	rows, err := Q.ListBrokerColumns(context.Background())
+	if err != nil {
+		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
+		return
+	}
+	columns := make(map[string][]string, len(rows))
+	for _, row := range rows {
+		var cols []string
+		if err := json.Unmarshal([]byte(row.ColumnsJson), &cols); err == nil {
+			columns[row.BrokerName] = cols
+		}
+	}
+	if columns == nil {
+		columns = map[string][]string{}
+	}
+	writeJSON(w, http.StatusOK, columns)
+}
+
+func boolToInt64(v bool) int64 {
+	if v {
+		return 1
+	}
+	return 0
 }

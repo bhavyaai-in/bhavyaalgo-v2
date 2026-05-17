@@ -1,5 +1,4 @@
 <script setup>
-import { defineEmits } from 'vue'
 const props = defineProps({ items: { type: Array, default: () => [] }, canAct: { type: Function, default: () => () => false } })
 const emit = defineEmits(['cancel','edit'])
 
