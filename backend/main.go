@@ -51,6 +51,7 @@ func main() {
 	app.RegisterConnectBrokerRoutes(mux)
 	app.RegisterBrokerProfileRoutes(mux)
 	app.RegisterBrokerDataRoutes(mux)
+	app.RegisterWatchlistRoutes(mux)
 
 	staticDir := findStaticDir()
 	if staticDir != "" {
@@ -80,10 +81,11 @@ func initDB() {
 	Q = gen.New(db)
 	db.Exec("PRAGMA journal_mode=WAL")
 	createTables()
+	db.Exec(`DELETE FROM master_contracts WHERE id NOT IN (SELECT MIN(id) FROM master_contracts GROUP BY symbol, exchange, instrumenttype, token)`)
 }
 
 func createTables() {
-	for _, sql := range []string{masterContractsTableSQL, systemSettingsTableSQL, brokerListTableSQL, brokerColumnsTableSQL, brokersTableSQL} {
+	for _, sql := range []string{watchlistsTableSQL, watchlistItemsTableSQL, watchlistItemsIdxSQL, masterContractsTableSQL, systemSettingsTableSQL, brokerListTableSQL, brokerColumnsTableSQL, brokersTableSQL} {
 		if _, err := db.Exec(sql); err != nil {
 			log.Fatalf("create table: %v", err)
 		}
@@ -109,6 +111,33 @@ func findStaticDir() string {
 	}
 	return ""
 }
+
+const watchlistsTableSQL = `CREATE TABLE IF NOT EXISTS watchlists (
+	id INTEGER PRIMARY KEY AUTOINCREMENT,
+	name TEXT NOT NULL,
+	sort_order INTEGER NOT NULL DEFAULT 0,
+	created_at TEXT NOT NULL DEFAULT (datetime('now','localtime')),
+	updated_at TEXT NOT NULL DEFAULT (datetime('now','localtime'))
+)`
+
+const watchlistItemsTableSQL = `CREATE TABLE IF NOT EXISTS watchlist_items (
+	id INTEGER PRIMARY KEY AUTOINCREMENT,
+	watchlist_id INTEGER NOT NULL REFERENCES watchlists(id) ON DELETE CASCADE,
+	symbol TEXT NOT NULL,
+	brsymbol TEXT NOT NULL DEFAULT '',
+	name TEXT NOT NULL DEFAULT '',
+	exchange TEXT NOT NULL DEFAULT '',
+	token TEXT NOT NULL DEFAULT '',
+	expiry TEXT NOT NULL DEFAULT '',
+	strike REAL NOT NULL DEFAULT 0,
+	lotsize INTEGER NOT NULL DEFAULT 0,
+	instrumenttype TEXT NOT NULL DEFAULT '',
+	tick_size REAL NOT NULL DEFAULT 0,
+	sort_order INTEGER NOT NULL DEFAULT 0,
+	created_at TEXT NOT NULL DEFAULT (datetime('now','localtime'))
+)`
+
+const watchlistItemsIdxSQL = `CREATE INDEX IF NOT EXISTS idx_wi_watchlist ON watchlist_items(watchlist_id)`
 
 const masterContractsTableSQL = `
 CREATE TABLE IF NOT EXISTS master_contracts (

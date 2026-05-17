@@ -9,9 +9,13 @@ import (
 )
 
 type Querier interface {
+	AddWatchlistItem(ctx context.Context, arg AddWatchlistItemParams) (int64, error)
 	BulkInsertMasterContract(ctx context.Context, arg BulkInsertMasterContractParams) error
+	ClearMasterContracts(ctx context.Context) error
 	CreateBroker(ctx context.Context, arg CreateBrokerParams) (int64, error)
+	CreateWatchlist(ctx context.Context, arg CreateWatchlistParams) (int64, error)
 	DeleteBroker(ctx context.Context, id int64) error
+	DeleteWatchlist(ctx context.Context, id int64) error
 	GetBroker(ctx context.Context, id int64) (Broker, error)
 	GetBrokerAuth(ctx context.Context, id int64) (GetBrokerAuthRow, error)
 	GetBrokerColumn(ctx context.Context, brokerName string) (string, error)
@@ -24,7 +28,14 @@ type Querier interface {
 	ListBrokerColumns(ctx context.Context) ([]BrokerColumn, error)
 	ListBrokerList(ctx context.Context) ([]BrokerList, error)
 	ListBrokers(ctx context.Context) ([]Broker, error)
+	ListWatchlistItems(ctx context.Context, watchlistID int64) ([]WatchlistItem, error)
+	ListWatchlists(ctx context.Context) ([]Watchlist, error)
+	RemoveWatchlistItem(ctx context.Context, id int64) error
+	ReorderWatchlistItem(ctx context.Context, arg ReorderWatchlistItemParams) error
+	ReorderWatchlistItems(ctx context.Context, arg ReorderWatchlistItemsParams) error
+	SearchMasterContract(ctx context.Context, arg SearchMasterContractParams) ([]MasterContract, error)
 	UpdateBroker(ctx context.Context, arg UpdateBrokerParams) error
+	UpdateWatchlist(ctx context.Context, arg UpdateWatchlistParams) error
 	UpsertBrokerColumn(ctx context.Context, arg UpsertBrokerColumnParams) error
 	UpsertSetting(ctx context.Context, arg UpsertSettingParams) error
 }

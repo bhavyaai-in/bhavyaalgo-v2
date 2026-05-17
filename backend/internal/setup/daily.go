@@ -56,7 +56,8 @@ func DownloadMasterContract(ctx context.Context, Q *gen.Queries) {
 		return
 	}
 
-	// Process and insert
+	// Clear old data and insert fresh
+	Q.ClearMasterContracts(ctx)
 	inserted := 0
 	for _, raw := range rows {
 		row := processAngelRow(raw)
