@@ -60,7 +60,6 @@ export function useBrokerData(props, endpoint) {
   onMounted(async () => {
     await fetchBrokers()
     if (props.broker) selectedId.value = String(props.broker.id)
-    else if (selectedId.value) loadData()
   })
 
   return { brokers, selectedId, data, loading, error, loadData }

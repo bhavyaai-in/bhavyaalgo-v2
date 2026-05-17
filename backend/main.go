@@ -78,6 +78,7 @@ func initDB() {
 		log.Fatalf("failed to ping db: %v", err)
 	}
 	Q = gen.New(db)
+	db.Exec("PRAGMA journal_mode=WAL")
 	createTables()
 }
 
