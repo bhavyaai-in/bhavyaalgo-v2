@@ -156,9 +156,10 @@ onMounted(async () => {
       <div v-for="b in brokers" :key="b.id" class="broker-card">
         <div class="card-header">
           <strong>{{ cap(b.friendly_name || b.broker_name) }}</strong>
-          <span class="badge" :class="{ connected: b.token_status === 'connected', error: b.token_status === 'error' }">
+            <span class="badge" :class="{ connected: b.token_status === 'connected', error: b.token_status === 'error', expired: b.token_status === 'expired' }">
             <template v-if="b.token_status === 'connected'">{{ b.message }}</template>
             <template v-else-if="b.token_status === 'error'">Error</template>
+            <template v-else-if="b.token_status === 'expired'">Expired</template>
             <template v-else>Not Connected</template>
           </span>
         </div>
@@ -306,6 +307,10 @@ header h2 { margin: 0; }
 .badge.error {
   background: hsl(0 84% 60% / .15);
   color: hsl(var(--destructive));
+}
+.badge.expired {
+  background: hsl(39 100% 50% / .15);
+  color: #D97706;
 }
 .card-body p { margin: .2rem 0; font-size: var(--font-sm); color: hsl(var(--foreground)); }
 .token-status { font-size: var(--font-xs) !important; margin-top: .3rem !important; }

@@ -8,6 +8,7 @@ import OrdersPage from '../components/brokers/OrdersPageDisplay.vue'
 import PositionsPage from '../components/brokers/PositionsPageDisplay.vue'
 import MarginPage from '../components/brokers/MarginPageDisplay.vue'
 import TradingWatchlist from '../components/TradingWatchlist.vue'
+import OrderPad from '../components/OrderPad.vue'
 
 const router = useRouter()
 const route = useRoute()
@@ -18,6 +19,24 @@ const email = computed(() => auth.email)
 const activeTab = computed(() => route.path === '/' ? 'dashboard' : route.path.slice(1))
 const menuOpen = ref(false)
 const watchlistOpen = ref(false)
+const orderSymbol = ref(null)
+const orderToken = ref(null)
+const orderExchange = ref(null)
+const orderPadOpen = ref(false)
+
+function onPlaceOrder(item) {
+  orderSymbol.value = item.symbol
+  orderToken.value = item.token
+  orderExchange.value = item.exchange
+  orderPadOpen.value = true
+}
+
+function closeOrderPad() {
+  orderPadOpen.value = false
+  orderSymbol.value = null
+  orderToken.value = null
+  orderExchange.value = null
+}
 
 function go(tab) {
   menuOpen.value = false
@@ -68,7 +87,7 @@ function handleLogout() {
 
     <!-- Body: sidebar + content -->
     <div class="body">
-      <TradingWatchlist :show="watchlistOpen" @close="watchlistOpen = false" />
+      <TradingWatchlist :show="watchlistOpen" @close="watchlistOpen = false" @place-order="onPlaceOrder" />
       <main class="content">
         <section v-if="activeTab === 'dashboard'" class="tab-content">
           <div class="welcome-card">
@@ -82,6 +101,13 @@ function handleLogout() {
         <section v-if="activeTab === 'holdings'" class="tab-content"><HoldingsPage /></section>
         <section v-if="activeTab === 'margin'" class="tab-content"><MarginPage /></section>
       </main>
+      <OrderPad
+        :show="orderPadOpen"
+        :symbol="orderSymbol"
+        :token="orderToken"
+        :exchange="orderExchange"
+        @close="closeOrderPad"
+      />
     </div>
   </div>
 </template>

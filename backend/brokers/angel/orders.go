@@ -43,9 +43,13 @@ func (c *Client) PlaceOrder(authToken string, payload map[string]any) (map[strin
 	if err != nil {
 		return nil, err
 	}
+	if len(data) == 0 {
+		return nil, fmt.Errorf("empty response from broker API")
+	}
+	// Try to extract error message even from non-JSON responses
 	var result map[string]any
 	if err := json.Unmarshal(data, &result); err != nil {
-		return nil, fmt.Errorf("failed to parse place order response: %w", err)
+		return nil, fmt.Errorf("broker API error: %s", string(data))
 	}
 	return result, nil
 }
@@ -56,9 +60,12 @@ func (c *Client) ModifyOrder(authToken string, payload map[string]any) (map[stri
 	if err != nil {
 		return nil, err
 	}
+	if len(data) == 0 {
+		return nil, fmt.Errorf("empty response from broker API")
+	}
 	var result map[string]any
 	if err := json.Unmarshal(data, &result); err != nil {
-		return nil, fmt.Errorf("failed to parse modify order response: %w", err)
+		return nil, fmt.Errorf("broker API error: %s", string(data))
 	}
 	return result, nil
 }
@@ -77,9 +84,12 @@ func (c *Client) CancelOrder(authToken, orderID string) (map[string]any, error) 
 			return nil, err
 		}
 	}
+	if len(data) == 0 {
+		return nil, fmt.Errorf("empty response from broker API")
+	}
 	var result map[string]any
 	if err := json.Unmarshal(data, &result); err != nil {
-		return nil, fmt.Errorf("failed to parse cancel order response: %w", err)
+		return nil, fmt.Errorf("broker API error: %s", string(data))
 	}
 	return result, nil
 }

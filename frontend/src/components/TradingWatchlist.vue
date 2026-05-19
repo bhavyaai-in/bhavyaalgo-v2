@@ -1,9 +1,10 @@
 <script setup>
-import { ref, onMounted, watch } from 'vue'
+import { ref, onMounted, onUnmounted, watch } from 'vue'
 import { api } from '../utils/api.js'
+import { useWebSocket } from '../composables/useWebSocket.js'
 
 defineProps({ show: Boolean })
-const emit = defineEmits(['close'])
+const emit = defineEmits(['close', 'place-order'])
 
 const activeWL = ref(null)
 const watchlists = ref([])
@@ -15,6 +16,33 @@ const dragItem = ref(null)
 const dragOver = ref(null)
 const showPrompt = ref(false)
 const promptName = ref('')
+const ltpMap = ref({})
+const ws = useWebSocket()
+
+// WebSocket: subscribe to current watchlist items, update LTP
+let subscribedSymbols = []
+
+function subscribeItems() {
+  const syms = items.value.map(i => (i.exchange || '') + '|' + (i.token || '')).filter(Boolean)
+  if (syms.length === 0) return
+  // Unsubscribe old, subscribe new
+  if (subscribedSymbols.length) ws.unsubscribe(subscribedSymbols)
+  ws.subscribe(syms)
+  subscribedSymbols = syms
+}
+
+ws.onTick((tick) => {
+  if (tick.token && tick.ltp != null) {
+    ltpMap.value = { ...ltpMap.value, [tick.token]: tick }
+  }
+})
+
+// Subscribe when items change
+watch(items, () => subscribeItems(), { deep: true })
+
+onUnmounted(() => {
+  if (subscribedSymbols.length) ws.unsubscribe(subscribedSymbols)
+})
 
 // Fetch watchlists
 async function loadWatchlists() {
@@ -45,8 +73,11 @@ onMounted(loadWatchlists)
 watch(searchQ, async (q) => {
   if (!q || q.length < 2) { searchResults.value = []; return }
   searching.value = true
-  try { searchResults.value = await api(`/api/search-contracts?q=${encodeURIComponent(q)}`) }
-  catch { searchResults.value = [] }
+  try {
+    const results = await api(`/api/search-contracts?q=${encodeURIComponent(q)}`)
+    const existing = new Set(items.value.map(i => i.token + '|' + i.exchange))
+    searchResults.value = results.filter(c => !existing.has(c.token + '|' + c.exchange))
+  } catch { searchResults.value = [] }
   finally { searching.value = false }
 })
 
@@ -72,7 +103,11 @@ async function addToWatchlist(contract) {
     searchResults.value = []
     await loadItems()
   } catch (e) {
-    console.error('add failed:', e)
+    if (e.status === 409) {
+      alert('Symbol already exists in this watchlist')
+    } else {
+      console.error('add failed:', e)
+    }
   }
 }
 
@@ -112,13 +147,36 @@ async function confirmNew() {
   await loadWatchlists()
 }
 
-function fmt(v) {
-  if (v == null || v === '') return '-'
-  return Number(v).toFixed(2)
+function tickData(item) {
+  return item?.token ? ltpMap.value[item.token] : null
 }
 
-async function addCurrentLtp(index, symbol) {
-  // this would fetch LTP from market data API - placeholder for now
+function ltpDisplay(item) {
+  const t = tickData(item)
+  if (!t) return '-'
+  return Number(t.ltp || t.close || 0).toFixed(2)
+}
+
+function changeDisplay(item) {
+  const t = tickData(item)
+  if (!t || t.change == null) return null
+  const ch = Number(t.change)
+  const sign = ch >= 0 ? '+' : ''
+  return `${sign}${ch.toFixed(2)}`
+}
+
+function pctDisplay(item) {
+  const t = tickData(item)
+  if (!t || t.change == null || !t.close) return null
+  const pct = (Number(t.change) / Number(t.close)) * 100
+  const sign = pct >= 0 ? '+' : ''
+  return `${sign}${pct.toFixed(2)}%`
+}
+
+function priceClass(item) {
+  const t = tickData(item)
+  if (!t || t.change == null) return ''
+  return Number(t.change) >= 0 ? 'up' : 'down'
 }
 </script>
 
@@ -154,7 +212,7 @@ async function addCurrentLtp(index, symbol) {
         <div class="row-left">
           <div class="symbol-info">
             <span class="symbol-name">{{ c.symbol }}</span>
-            <span class="symbol-exchange">{{ c.exchange }} <span class="inst-type">{{ c.instrumenttype || 'EQ' }}</span></span>
+            <div class="symbol-badge">{{ c.exchange }}</div>
           </div>
         </div>
         <div class="row-right">
@@ -171,11 +229,17 @@ async function addCurrentLtp(index, symbol) {
         :class="{ 'drag-over': dragOver === idx }" @drop="onDrop(idx)">
         <div class="row-left">
           <div class="symbol-info">
-            <span class="symbol-name">{{ item.symbol }}</span>
-            <span class="symbol-exchange">{{ item.exchange }} <span class="inst-type">{{ item.instrumenttype || 'EQ' }}</span></span>
+            <strong class="symbol-name clickable" @click.stop="emit('place-order', item)">{{ item.symbol }}</strong>
+            <div class="symbol-badge">{{ item.exchange }}</div>
           </div>
         </div>
-        <div class="row-right">
+        <div class="row-right" :class="priceClass(item)">
+          <div class="price-col">
+            <span class="ltp-val">{{ ltpDisplay(item) }}</span>
+            <span v-if="changeDisplay(item)" class="change-val">
+              {{ changeDisplay(item) }} ({{ pctDisplay(item) }})
+            </span>
+          </div>
           <button class="icon-btn sm remove-btn" title="Remove" @click="removeItem(item)">✕</button>
         </div>
       </div>
@@ -239,9 +303,15 @@ async function addCurrentLtp(index, symbol) {
 .row-left { display:flex; align-items:center; gap:.5rem; min-width:0; }
 .symbol-info { display:flex; flex-direction:column; gap:.1rem; }
 .symbol-name { font-size:.8125rem; font-weight:700; color:hsl(var(--foreground)); line-height:1.2; }
-.symbol-exchange { font-size:.6875rem; color:hsl(var(--muted-foreground)); }
-.inst-type { display:inline-block; padding:0 .25rem; margin-left:.25rem; font-size:.625rem; background:hsl(var(--muted)); border-radius:3px; color:hsl(var(--muted-foreground)); }
-.row-right { display:flex; align-items:center; gap:.25rem; }
+.symbol-name.clickable { cursor:pointer; }
+.symbol-name.clickable:hover { color:hsl(var(--primary)); }
+.symbol-badge { display:inline-block; font-size:.625rem; font-weight:500; color:hsl(var(--muted-foreground)); background:hsl(var(--muted)); padding:0 .25rem; border-radius:3px; width:fit-content; }
+.row-right { display:flex; align-items:center; gap:.5rem; }
+.row-right.up .price-col { color:#16A34A; }
+.row-right.down .price-col { color:hsl(var(--destructive)); }
+.price-col { display:flex; flex-direction:column; align-items:flex-end; gap:0; min-width:80px; }
+.ltp-val { font-size:.8125rem; font-weight:700; line-height:1.3; }
+.change-val { font-size:.6875rem; font-weight:400; white-space:nowrap; }
 .remove-btn { opacity:0; transition:opacity .15s; }
 .watchlist-row:hover .remove-btn { opacity:1; }
 .watchlist-row.drag-over { border-top:2px solid hsl(var(--primary)); }

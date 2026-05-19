@@ -5,6 +5,8 @@ import (
 	"encoding/json"
 	"net/http"
 	"strconv"
+	"strings"
+	"time"
 
 	"bhavyaaialgo/backend/db/gen"
 	"bhavyaaialgo/backend/internal/service"
@@ -34,6 +36,10 @@ type BrokerResponse struct {
 }
 
 func brokerToResponse(b gen.Broker) BrokerResponse {
+	tokenStatus := b.TokenStatus
+	if tokenStatus == "connected" && !isTokenDateToday(b.BrokerTokenDate) {
+		tokenStatus = "expired"
+	}
 	return BrokerResponse{
 		ID:              b.ID,
 		FriendlyName:    b.FriendlyName,
@@ -44,7 +50,7 @@ func brokerToResponse(b gen.Broker) BrokerResponse {
 		BrokerAPI:       b.BrokerApi,
 		BrokerAPISecret: b.BrokerApiSecret,
 		BrokerName:      b.BrokerName,
-		TokenStatus:     b.TokenStatus,
+		TokenStatus:     tokenStatus,
 		BrokerTokenDate: b.BrokerTokenDate,
 		IsActive:        b.IsActive != 0,
 		IsAutologin:     b.IsAutologin != 0,
@@ -55,6 +61,20 @@ func brokerToResponse(b gen.Broker) BrokerResponse {
 		CreatedAt:       b.CreatedAt,
 		UpdatedAt:       b.UpdatedAt,
 	}
+}
+
+func isTokenDateToday(dateStr string) bool {
+	dateStr = strings.TrimSpace(dateStr)
+	if dateStr == "" {
+		return false
+	}
+	// Expected format: "2026-05-19 13:46:52"
+	parsed, err := time.Parse("2006-01-02 15:04:05", dateStr)
+	if err != nil {
+		return false
+	}
+	now := time.Now()
+	return parsed.Year() == now.Year() && parsed.YearDay() == now.YearDay()
 }
 
 func handleLogin(email, password string) http.HandlerFunc {

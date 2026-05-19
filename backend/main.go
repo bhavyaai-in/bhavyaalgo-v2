@@ -14,8 +14,13 @@ import (
 	"bhavyaaialgo/backend/internal/config"
 	"bhavyaaialgo/backend/internal/service"
 	"bhavyaaialgo/backend/internal/setup"
+	"bhavyaaialgo/backend/ws"
 	_ "modernc.org/sqlite"
 )
+
+var hub = ws.NewHub()
+
+var upgrader = ws.NewUpgrader()
 
 var db *sql.DB
 var Q *gen.Queries
@@ -47,11 +52,45 @@ func main() {
 	mux.HandleFunc("GET /api/broker-list", authMiddleware(handleListBrokerList))
 	mux.HandleFunc("GET /api/broker-columns", authMiddleware(handleBrokerColumns))
 
-	app := &blueprints.App{DB: db, Q: Q, Sessions: service.Sessions}
+	app := &blueprints.App{DB: db, Q: Q, Sessions: service.Sessions, Hub: hub}
 	app.RegisterConnectBrokerRoutes(mux)
 	app.RegisterBrokerProfileRoutes(mux)
 	app.RegisterBrokerDataRoutes(mux)
 	app.RegisterWatchlistRoutes(mux)
+
+	mux.HandleFunc("GET /ws", func(w http.ResponseWriter, r *http.Request) {
+		// Upgrade requires auth via query param or header
+		token := r.Header.Get("Authorization")
+		if token == "" {
+			token = r.URL.Query().Get("token")
+		}
+		if token == "" {
+			http.Error(w, "unauthorized", http.StatusUnauthorized)
+			return
+		}
+		_, ok := service.Sessions.Get(token)
+		if !ok {
+			http.Error(w, "invalid token", http.StatusUnauthorized)
+			return
+		}
+		conn, err := upgrader.Upgrade(w, r, nil)
+		if err != nil {
+			log.Printf("ws upgrade: %v", err)
+			return
+		}
+		hub.HandleWebSocket(conn)
+	})
+
+	// Start Angel One broker stream if a connected broker exists
+	go func() {
+		var clientCode, authToken, feedToken, apiKey string
+		err := db.QueryRow(`SELECT broker_userid, broker_token, feed_token, broker_api FROM brokers WHERE token_status='connected' AND DATE(broker_token_date) = DATE('now','localtime') LIMIT 1`).Scan(&clientCode, &authToken, &feedToken, &apiKey)
+		if err == nil && clientCode != "" {
+			tokenSymbol := loadTokenSymbolMap(db)
+			symbols := loadWatchlistSymbols(db)
+			hub.StartBroker(clientCode, authToken, feedToken, apiKey, tokenSymbol, symbols)
+		}
+	}()
 
 	staticDir := findStaticDir()
 	if staticDir != "" {
@@ -100,6 +139,43 @@ func writeJSON(w http.ResponseWriter, status int, v any) {
 	if err := json.NewEncoder(w).Encode(v); err != nil {
 		log.Printf("json encode error: %v", err)
 	}
+}
+
+func loadWatchlistSymbols(db *sql.DB) []string {
+	rows, err := db.Query(`SELECT wi.token, mc.exchange FROM watchlist_items wi JOIN master_contracts mc ON mc.token = wi.token AND mc.exchange = wi.exchange ORDER BY wi.watchlist_id, wi.sort_order`)
+	if err != nil {
+		log.Printf("load watchlist symbols: %v", err)
+		return nil
+	}
+	defer rows.Close()
+	var symbols []string
+	for rows.Next() {
+		var token, exchange string
+		if err := rows.Scan(&token, &exchange); err != nil {
+			continue
+		}
+		symbols = append(symbols, exchange+"|"+token)
+	}
+	log.Printf("loaded %d watchlist symbols", len(symbols))
+	return symbols
+}
+
+func loadTokenSymbolMap(db *sql.DB) map[string]string {
+	m := make(map[string]string)
+	rows, err := db.Query(`SELECT token, symbol FROM master_contracts`)
+	if err != nil {
+		log.Printf("load token symbol map: %v", err)
+		return m
+	}
+	defer rows.Close()
+	for rows.Next() {
+		var token, symbol string
+		if err := rows.Scan(&token, &symbol); err != nil {
+			continue
+		}
+		m[token] = symbol
+	}
+	return m
 }
 
 func findStaticDir() string {

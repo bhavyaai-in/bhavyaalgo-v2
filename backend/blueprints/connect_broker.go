@@ -1,6 +1,7 @@
 package blueprints
 
 import (
+	"database/sql"
 	"encoding/json"
 	"log"
 	"net/http"
@@ -90,6 +91,9 @@ func (a *App) handleConnectBroker(w http.ResponseWriter, r *http.Request) {
 		"feed_token":   feedToken,
 		"profile_name": profileName,
 	})
+
+	// Start the broker stream after successful connection
+	a.startBrokerStream(b.BrokerUserid, authToken, feedToken, apiKey)
 }
 
 func generateTOTP(secret string) (code string) {
@@ -127,6 +131,46 @@ func safeSuffix(s string, n int) string {
 		return s
 	}
 	return "..." + s[len(s)-n:]
+}
+
+func (a *App) startBrokerStream(clientCode, authToken, feedToken, apiKey string) {
+	if a.Hub == nil {
+		return
+	}
+
+	tokenSymbol := make(map[string]string)
+	rows, err := a.DB.Query(`SELECT token, symbol FROM master_contracts`)
+	if err == nil {
+		for rows.Next() {
+			var token, symbol string
+			if rows.Scan(&token, &symbol) == nil {
+				tokenSymbol[token] = symbol
+			}
+		}
+		rows.Close()
+	}
+
+	symbols := loadWatchlistSymbols(a.DB)
+	a.Hub.StartBroker(clientCode, authToken, feedToken, apiKey, tokenSymbol, symbols)
+}
+
+func loadWatchlistSymbols(db *sql.DB) []string {
+	rows, err := db.Query(`SELECT wi.token, mc.exchange FROM watchlist_items wi JOIN master_contracts mc ON mc.token = wi.token AND mc.exchange = wi.exchange ORDER BY wi.watchlist_id, wi.sort_order`)
+	if err != nil {
+		log.Printf("load watchlist symbols: %v", err)
+		return nil
+	}
+	defer rows.Close()
+	var symbols []string
+	for rows.Next() {
+		var token, exchange string
+		if err := rows.Scan(&token, &exchange); err != nil {
+			continue
+		}
+		symbols = append(symbols, exchange+"|"+token)
+	}
+	log.Printf("loaded %d watchlist symbols", len(symbols))
+	return symbols
 }
 
 

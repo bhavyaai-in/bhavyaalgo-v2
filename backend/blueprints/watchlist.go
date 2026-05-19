@@ -101,6 +101,12 @@ func (a *App) handleAddItem(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	existing, _ := a.Q.ListWatchlistItems(context.Background(), watchlistID)
+	for _, item := range existing {
+		if item.Token == req.Token && item.Exchange == req.Exchange {
+			writeJSON(w, http.StatusConflict, map[string]string{"error": "symbol already exists in watchlist"})
+			return
+		}
+	}
 	nextOrder := int64(len(existing))
 	id, err := a.Q.AddWatchlistItem(context.Background(), gen.AddWatchlistItemParams{
 		WatchlistID:    watchlistID,

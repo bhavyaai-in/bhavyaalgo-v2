@@ -8,6 +8,7 @@ import (
 	"runtime/debug"
 
 	"bhavyaaialgo/backend/db/gen"
+	"bhavyaaialgo/backend/ws"
 )
 
 type SessionStore interface {
@@ -18,6 +19,7 @@ type App struct {
 	DB       *sql.DB
 	Q        *gen.Queries
 	Sessions SessionStore
+	Hub      *ws.Hub
 }
 
 func writeJSON(w http.ResponseWriter, status int, v any) {

@@ -56,7 +56,6 @@ func (c *Client) headers(authToken string) http.Header {
 }
 
 func (c *Client) doRequest(method, url, authToken, body string) ([]byte, error) {
-	//print the request details for debugging
 	req, err := http.NewRequest(method, url, strings.NewReader(body))
 	if err != nil {
 		return nil, err
@@ -72,7 +71,17 @@ func (c *Client) doRequest(method, url, authToken, body string) ([]byte, error) 
 		return nil, err
 	}
 	if resp.StatusCode == 403 {
-		return nil, fmt.Errorf("authentication failed: %s", string(data))
+		return nil, fmt.Errorf("authentication failed")
+	}
+	if resp.StatusCode != 200 && resp.StatusCode != 201 {
+		msg := string(data)
+		if msg == "" {
+			msg = "empty response"
+		}
+		if len(msg) > 200 {
+			msg = msg[:200]
+		}
+		return nil, fmt.Errorf("API error: %s", msg)
 	}
 	return data, nil
 }
