@@ -392,7 +392,7 @@ if ap, ok := raw["ap"]; ok {
 	if ft, ok := raw["ft"].(string); ok && ft != "" {
 		tick["feedTime"] = ft
 	}
-
+	fmt.Printf("alice broker: parsed tick: %v\n", tick)
 	return tick
 }
 

@@ -222,7 +222,14 @@ func (a *App) startAliceBrokerStream(clientID, sessionToken string) {
 }
 
 func loadWatchlistSymbols(db *sql.DB) []string {
-	rows, err := db.Query(`SELECT wi.token, mc.exchange FROM watchlist_items wi JOIN master_contracts mc ON mc.token = wi.token AND mc.exchange = wi.exchange ORDER BY wi.watchlist_id, wi.sort_order`)
+	rows, err := db.Query(`
+		SELECT wi.token, COALESCE(mc.exchange, wi.exchange)
+		FROM watchlist_items wi
+		LEFT JOIN master_contracts mc ON
+			mc.exchange = wi.exchange
+			AND (mc.token = wi.token OR (wi.token LIKE '999%' AND mc.token = SUBSTR(wi.token, 4)))
+		ORDER BY wi.watchlist_id, wi.sort_order
+	`)
 	if err != nil {
 		log.Printf("load watchlist symbols: %v", err)
 		return nil
