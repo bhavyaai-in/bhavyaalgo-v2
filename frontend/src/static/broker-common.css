@@ -4,9 +4,15 @@
 .page header h2 { margin:0; }
 
 .broker-select {
-  padding:.5rem 1rem; border:1px solid hsl(var(--primary)); border-radius:var(--radius);
+  padding:.5rem 2rem .5rem 1rem; border:1px solid hsl(var(--primary)); border-radius:var(--radius);
   font-size:var(--font-sm); background:hsl(var(--primary)); color:hsl(var(--primary-foreground));
   cursor:pointer; font-weight:500;
+  appearance:none; -webkit-appearance:none;
+  background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath fill='%23fff' d='M6 8L1 3h10z'/%3E%3C/svg%3E");
+  background-repeat:no-repeat; background-position:right .6rem center; background-size:10px;
+}
+.broker-select option {
+  background:hsl(var(--card)); color:hsl(var(--foreground));
 }
 
 .state-msg { text-align:center; padding:2rem; color:hsl(var(--muted-foreground)); }
