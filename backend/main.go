@@ -149,68 +149,8 @@ func createTables() {
 	db.Exec(`ALTER TABLE master_contracts ADD COLUMN broker_name TEXT NOT NULL DEFAULT ''`)
 	db.Exec(mcBrokerIndexSQL)
 
-	// Seed common NSE/BSE index tokens if missing
-	seedIndexTokens()
-}
-
-func seedIndexTokens() {
-	indices := []struct {
-		token, exchange, symbol, name, brsymbol, brexchange string
-	}{
-		{"99926000", "NSE_INDEX", "NIFTY", "NIFTY 50", "NIFTY", "NSE"},
-		{"99926009", "NSE_INDEX", "BANKNIFTY", "NIFTY BANK", "BANKNIFTY", "NSE"},
-		{"99926018", "NSE_INDEX", "NIFTYIT", "NIFTY IT", "NIFTYIT", "NSE"},
-		{"99926010", "NSE_INDEX", "NIFTYNXT50", "NIFTY NEXT 50", "NIFTYNXT50", "NSE"},
-		{"99926015", "NSE_INDEX", "NIFTYMIDCAP100", "NIFTY MIDCAP 100", "NIFTYMIDCAP100", "NSE"},
-		{"99926021", "NSE_INDEX", "NIFTYAUTO", "NIFTY AUTO", "NIFTYAUTO", "NSE"},
-		{"99926022", "NSE_INDEX", "NIFTYFMCG", "NIFTY FMCG", "NIFTYFMCG", "NSE"},
-		{"99926025", "NSE_INDEX", "NIFTYMETAL", "NIFTY METAL", "NIFTYMETAL", "NSE"},
-		{"99926028", "NSE_INDEX", "NIFTYREALTY", "NIFTY REALTY", "NIFTYREALTY", "NSE"},
-		{"99926033", "NSE_INDEX", "NIFTYPHARMA", "NIFTY PHARMA", "NIFTYPHARMA", "NSE"},
-		{"99926037", "NSE_INDEX", "NIFTYENERGY", "NIFTY ENERGY", "NIFTYENERGY", "NSE"},
-		{"99926041", "NSE_INDEX", "NIFTYMEDIA", "NIFTY MEDIA", "NIFTYMEDIA", "NSE"},
-		{"99926045", "NSE_INDEX", "NIFTYPSUBANK", "NIFTY PSU BANK", "NIFTYPSUBANK", "NSE"},
-		{"99926065", "NSE_INDEX", "INDIAVIX", "INDIA VIX", "INDIAVIX", "NSE"},
-		{"9991", "BSE_INDEX", "SENSEX", "SENSEX", "SENSEX", "BSE"},
-		{"9992", "BSE_INDEX", "BSE100", "BSE 100", "BSE100", "BSE"},
-	}
-	// Also add Alice-format entries (plain token, NSE exchange) so Alice WS lookups work
-	aliceIndices := []struct {
-		token, exchange, symbol, name, brsymbol, brexchange string
-	}{
-		{"26000", "NSE", "NIFTY", "NIFTY 50", "NIFTY", "NSE"},
-		{"26009", "NSE", "BANKNIFTY", "NIFTY BANK", "BANKNIFTY", "NSE"},
-		{"26018", "NSE", "NIFTYIT", "NIFTY IT", "NIFTYIT", "NSE"},
-		{"26010", "NSE", "NIFTYNXT50", "NIFTY NEXT 50", "NIFTYNXT50", "NSE"},
-		{"26015", "NSE", "NIFTYMIDCAP100", "NIFTY MIDCAP 100", "NIFTYMIDCAP100", "NSE"},
-		{"26021", "NSE", "NIFTYAUTO", "NIFTY AUTO", "NIFTYAUTO", "NSE"},
-		{"26022", "NSE", "NIFTYFMCG", "NIFTY FMCG", "NIFTYFMCG", "NSE"},
-		{"26025", "NSE", "NIFTYMETAL", "NIFTY METAL", "NIFTYMETAL", "NSE"},
-		{"26028", "NSE", "NIFTYREALTY", "NIFTY REALTY", "NIFTYREALTY", "NSE"},
-		{"26033", "NSE", "NIFTYPHARMA", "NIFTY PHARMA", "NIFTYPHARMA", "NSE"},
-		{"26037", "NSE", "NIFTYENERGY", "NIFTY ENERGY", "NIFTYENERGY", "NSE"},
-		{"26041", "NSE", "NIFTYMEDIA", "NIFTY MEDIA", "NIFTYMEDIA", "NSE"},
-		{"26045", "NSE", "NIFTYPSUBANK", "NIFTY PSU BANK", "NIFTYPSUBANK", "NSE"},
-		{"26065", "NSE", "INDIAVIX", "INDIA VIX", "INDIAVIX", "NSE"},
-		{"1", "BSE", "SENSEX", "SENSEX", "SENSEX", "BSE"},
-		{"2", "BSE", "BSE100", "BSE 100", "BSE100", "BSE"},
-	}
-	for _, idx := range indices {
-		var c int
-		db.QueryRow(`SELECT COUNT(*) FROM master_contracts WHERE token=? AND exchange=?`, idx.token, idx.exchange).Scan(&c)
-		if c == 0 {
-			db.Exec(`INSERT INTO master_contracts (token, exchange, symbol, brsymbol, name, brexchange, instrumenttype) VALUES (?, ?, ?, ?, ?, ?, ?)`,
-				idx.token, idx.exchange, idx.symbol, idx.brsymbol, idx.name, idx.brexchange, "AMXIDX")
-		}
-	}
-	for _, idx := range aliceIndices {
-		var c int
-		db.QueryRow(`SELECT COUNT(*) FROM master_contracts WHERE token=? AND exchange=?`, idx.token, idx.exchange).Scan(&c)
-		if c == 0 {
-			db.Exec(`INSERT INTO master_contracts (token, exchange, symbol, brsymbol, name, brexchange, instrumenttype) VALUES (?, ?, ?, ?, ?, ?, ?)`,
-				idx.token, idx.exchange, idx.symbol, idx.brsymbol, idx.name, idx.brexchange, "AMXIDX")
-		}
-	}
+	// Clean up old index entries (NSE_INDEX/BSE_INDEX/MCX_INDEX)
+	db.Exec(`DELETE FROM master_contracts WHERE exchange IN ('NSE_INDEX','BSE_INDEX','MCX_INDEX')`)
 }
 
 

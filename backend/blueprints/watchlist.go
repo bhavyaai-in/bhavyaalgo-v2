@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"net/http"
+	"sort"
 	"strconv"
 
 	"bhavyaaialgo/backend/db/gen"
@@ -165,5 +166,44 @@ func (a *App) handleSearchContracts(w http.ResponseWriter, r *http.Request) {
 	if results == nil {
 		results = []gen.MasterContract{}
 	}
+	sortSearchResults(results)
 	writeJSON(w, http.StatusOK, results)
+}
+
+var exchangeOrder = map[string]int{
+	"NSE": 1, "BSE": 2,
+	"NFO": 3, "BFO": 4, "MCX": 5, "CDS": 6, "BCD": 7,
+}
+
+var instOrder = map[string]int{
+	"EQ": 1, "FUT": 2, "FUTSTK": 2, "OPT": 3, "OPTSTK": 3,
+	"CE": 3, "PE": 3,
+}
+
+func sortSearchResults(results []gen.MasterContract) {
+	sort.SliceStable(results, func(i, j int) bool {
+		ei := exchangeOrder[results[i].Exchange]
+		if ei == 0 {
+			ei = 99
+		}
+		ej := exchangeOrder[results[j].Exchange]
+		if ej == 0 {
+			ej = 99
+		}
+		if ei != ej {
+			return ei < ej
+		}
+		ii := instOrder[results[i].Instrumenttype]
+		if ii == 0 {
+			ii = 99
+		}
+		ij := instOrder[results[j].Instrumenttype]
+		if ij == 0 {
+			ij = 99
+		}
+		if ii != ij {
+			return ii < ij
+		}
+		return results[i].Symbol < results[j].Symbol
+	})
 }
