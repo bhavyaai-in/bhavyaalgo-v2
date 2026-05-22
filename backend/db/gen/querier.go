@@ -12,7 +12,7 @@ import (
 type Querier interface {
 	AddWatchlistItem(ctx context.Context, arg AddWatchlistItemParams) (int64, error)
 	BulkInsertMasterContract(ctx context.Context, arg BulkInsertMasterContractParams) error
-	ClearMasterContracts(ctx context.Context) error
+	ClearBrokerContracts(ctx context.Context, brokerName string) error
 	CreateBroker(ctx context.Context, arg CreateBrokerParams) (int64, error)
 	CreateOrder(ctx context.Context, arg CreateOrderParams) (int64, error)
 	CreatePosition(ctx context.Context, arg CreatePositionParams) (int64, error)

@@ -63,8 +63,8 @@ func DownloadMasterContract(ctx context.Context, Q *gen.Queries) {
 		return
 	}
 
-	// Clear old data and insert fresh
-	Q.ClearMasterContracts(ctx)
+	// Clear old data for this broker and insert fresh
+	Q.ClearBrokerContracts(ctx, "angel")
 	inserted := 0
 	for _, raw := range rows {
 		row := processAngelRow(raw)
@@ -162,6 +162,7 @@ func processAngelRow(raw map[string]any) gen.BulkInsertMasterContractParams {
 		Lotsize:         getI("lotsize"),
 		Instrumenttype:  instType,
 		TickSize:        getF("tick_size") / 100,
+		BrokerName:      "angel",
 	}
 }
 
@@ -188,7 +189,7 @@ func DownloadAliceContractMaster(ctx context.Context, Q *gen.Queries) {
 	}
 
 	log.Print("alice master contract: downloading...")
-	Q.ClearMasterContracts(ctx)
+	Q.ClearBrokerContracts(ctx, "aliceblue")
 	totalInserted := 0
 
 	for _, exch := range aliceExchanges {
@@ -308,6 +309,7 @@ func processAliceRow(rec []string, hdr map[string]int, exchangeFile string) []*g
 		Lotsize:        gi("Lot Size"),
 		Instrumenttype: instType,
 		TickSize:       gf("Tick Size"),
+		BrokerName:     "aliceblue",
 	}
 
 	rows := []*gen.BulkInsertMasterContractParams{row}
@@ -325,6 +327,7 @@ func processAliceRow(rec []string, hdr map[string]int, exchangeFile string) []*g
 			Lotsize:        gi("Lot Size"),
 			Instrumenttype: instType,
 			TickSize:       gf("Tick Size"),
+			BrokerName:     "aliceblue",
 		}
 		rows = append(rows, idxRow)
 	}

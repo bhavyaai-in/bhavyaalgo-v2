@@ -72,12 +72,12 @@ ON CONFLICT(key) DO UPDATE SET value=excluded.value, updated_at=datetime('now','
 -- name: GetMasterContractCount :one
 SELECT COUNT(*) FROM master_contracts;
 
--- name: ClearMasterContracts :exec
-DELETE FROM master_contracts;
+-- name: ClearBrokerContracts :exec
+DELETE FROM master_contracts WHERE broker_name=?;
 
 -- name: BulkInsertMasterContract :exec
-INSERT INTO master_contracts (symbol, brsymbol, name, exchange, brexchange, token, expiry, strike, lotsize, instrumenttype, tick_size)
-VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
+INSERT INTO master_contracts (symbol, brsymbol, name, exchange, brexchange, token, expiry, strike, lotsize, instrumenttype, tick_size, broker_name)
+VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
 
 -- name: SearchMasterContract :many
 SELECT * FROM master_contracts

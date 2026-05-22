@@ -51,8 +51,8 @@ func (q *Queries) AddWatchlistItem(ctx context.Context, arg AddWatchlistItemPara
 }
 
 const bulkInsertMasterContract = `-- name: BulkInsertMasterContract :exec
-INSERT INTO master_contracts (symbol, brsymbol, name, exchange, brexchange, token, expiry, strike, lotsize, instrumenttype, tick_size)
-VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+INSERT INTO master_contracts (symbol, brsymbol, name, exchange, brexchange, token, expiry, strike, lotsize, instrumenttype, tick_size, broker_name)
+VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 `
 
 type BulkInsertMasterContractParams struct {
@@ -67,6 +67,7 @@ type BulkInsertMasterContractParams struct {
 	Lotsize        int64   `json:"lotsize"`
 	Instrumenttype string  `json:"instrumenttype"`
 	TickSize       float64 `json:"tick_size"`
+	BrokerName     string  `json:"broker_name"`
 }
 
 func (q *Queries) BulkInsertMasterContract(ctx context.Context, arg BulkInsertMasterContractParams) error {
@@ -82,16 +83,17 @@ func (q *Queries) BulkInsertMasterContract(ctx context.Context, arg BulkInsertMa
 		arg.Lotsize,
 		arg.Instrumenttype,
 		arg.TickSize,
+		arg.BrokerName,
 	)
 	return err
 }
 
-const clearMasterContracts = `-- name: ClearMasterContracts :exec
-DELETE FROM master_contracts
+const clearBrokerContracts = `-- name: ClearBrokerContracts :exec
+DELETE FROM master_contracts WHERE broker_name=?
 `
 
-func (q *Queries) ClearMasterContracts(ctx context.Context) error {
-	_, err := q.db.ExecContext(ctx, clearMasterContracts)
+func (q *Queries) ClearBrokerContracts(ctx context.Context, brokerName string) error {
+	_, err := q.db.ExecContext(ctx, clearBrokerContracts, brokerName)
 	return err
 }
 

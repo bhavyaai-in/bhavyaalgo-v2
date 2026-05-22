@@ -21,8 +21,11 @@ CREATE TABLE IF NOT EXISTS master_contracts (
     lotsize INTEGER NOT NULL DEFAULT 0,
     instrumenttype TEXT NOT NULL DEFAULT '',
     tick_size REAL NOT NULL DEFAULT 0,
+    broker_name TEXT NOT NULL DEFAULT '',
     created_at TEXT NOT NULL DEFAULT (datetime('now','localtime'))
 );
+
+CREATE INDEX IF NOT EXISTS idx_mc_broker ON master_contracts(broker_name);
 CREATE INDEX IF NOT EXISTS idx_mc_symbol ON master_contracts(symbol);
 CREATE INDEX IF NOT EXISTS idx_mc_exchange ON master_contracts(exchange);
 

@@ -61,6 +61,7 @@ type MasterContract struct {
 	Lotsize        int64   `json:"lotsize"`
 	Instrumenttype string  `json:"instrumenttype"`
 	TickSize       float64 `json:"tick_size"`
+	BrokerName     string  `json:"broker_name"`
 	CreatedAt      string  `json:"created_at"`
 }
 
