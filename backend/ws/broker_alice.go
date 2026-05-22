@@ -338,21 +338,8 @@ func (b *AliceBrokerClient) parseAliceTick(msg []byte) map[string]any {
 	if sym, ok := b.tokenSymbol[exch+"|"+token]; ok {
 		tick["symbol"] = sym
 	}
-	prefixToken := "999" + token
-	exchMap := map[string]string{
-		"NSE": "NSE_INDEX",
-		"BSE": "BSE_INDEX",
-		"MCX": "MCX_INDEX",
-	}
-	for _, tryExch := range []string{exch, exchMap[exch]} {
-		if tryExch == "" {
-			continue
-		}
-		if sym, ok := b.tokenSymbol[tryExch+"|"+prefixToken]; ok {
-			tick["token"] = prefixToken
-			tick["symbol"] = sym
-			break
-		}
+	if len(token) >= 3 && token[:2] == "26" {
+		tick["token"] = "999" + token
 	}
 
 	lp := parseAnyFloat(raw["lp"])
