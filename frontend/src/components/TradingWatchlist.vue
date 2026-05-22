@@ -34,6 +34,7 @@ function subscribeItems() {
 ws.onTick((tick) => {
   if (tick.token && tick.ltp != null) {
     ltpMap.value = { ...ltpMap.value, [tick.token]: tick }
+    if (tick.token_999) ltpMap.value[tick.token_999] = ltpMap.value[tick.token]
   }
 })
 
@@ -149,7 +150,10 @@ async function confirmNew() {
 
 function tickData(item) {
   if (!item?.token) return null
-  return ltpMap.value[item.token] || ltpMap.value['999' + item.token] || null
+  const t = ltpMap.value[item.token]
+  if (t) return t
+  if (item.token.startsWith('999')) return ltpMap.value[item.token.slice(3)] || null
+  return ltpMap.value['999' + item.token] || null
 }
 
 function ltpDisplay(item) {

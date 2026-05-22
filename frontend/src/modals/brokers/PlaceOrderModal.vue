@@ -33,13 +33,14 @@ const ltpMap = ref({})
 ws.onTick((tick) => {
   if (tick.token && tick.ltp != null) {
     ltpMap.value = { ...ltpMap.value, [tick.token]: tick }
+    if (tick.token_999) ltpMap.value[tick.token_999] = ltpMap.value[tick.token]
   }
 })
 
 const tick = computed(() => {
   if (!selectedContract.value) return null
   const t = selectedContract.value.token
-  return ltpMap.value[t] || ltpMap.value['999' + t] || null
+  return ltpMap.value[t] || (t.startsWith('999') ? ltpMap.value[t.slice(3)] : ltpMap.value['999' + t]) || null
 })
 const ltp = computed(() => {
   if (!tick.value) return null
