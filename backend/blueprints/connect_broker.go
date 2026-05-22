@@ -112,7 +112,12 @@ func (a *App) handleConnectBroker(w http.ResponseWriter, r *http.Request) {
 
 	// Download master contracts in background and notify frontend
 	go func() {
-		lastVal, _ := a.Q.GetSetting(context.Background(), setup.MasterContractSettingKey)
+		brokerName := b.BrokerName
+		settingKey := setup.MasterContractSettingKey
+		if brokerName == "aliceblue" {
+			settingKey = "master_contract_alice"
+		}
+		lastVal, _ := a.Q.GetSetting(context.Background(), settingKey)
 		if lastVal != "" {
 			if t, err := time.Parse(time.RFC3339, lastVal); err == nil {
 				if time.Since(t) < 24*time.Hour {
@@ -121,17 +126,31 @@ func (a *App) handleConnectBroker(w http.ResponseWriter, r *http.Request) {
 			}
 		}
 		if a.Hub != nil {
+			title := brokerName + " master contract update started in background"
+			if brokerName == "aliceblue" {
+				title = "Alice Blue master contract update started in background"
+			}
 			a.Hub.BroadcastNotification(map[string]any{
 				"title":   "Downloading Master Contracts",
-				"message": "Angel One master contract update started in background",
+				"message": title,
 				"type":    "info",
 			})
 		}
-		setup.DownloadMasterContract(context.Background(), a.Q)
+		if brokerName == "aliceblue" {
+			setup.DownloadAliceContractMaster(context.Background(), a.Q)
+		} else {
+			setup.DownloadMasterContract(context.Background(), a.Q)
+		}
 		if a.Hub != nil {
+			name := brokerName
+			if brokerName == "aliceblue" {
+				name = "Alice Blue"
+			} else if brokerName == "angel" {
+				name = "Angel One"
+			}
 			a.Hub.BroadcastNotification(map[string]any{
 				"title":   "Master Contracts Updated",
-				"message": "Angel One master contract has been downloaded successfully",
+				"message": name + " master contract has been downloaded successfully",
 				"type":    "success",
 			})
 		}

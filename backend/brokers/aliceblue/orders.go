@@ -241,16 +241,24 @@ func (c *Client) GetHoldings(sessionToken, productType string) (map[string]any, 
 }
 
 func parseResultList(data []byte) ([]map[string]any, error) {
-	var resp struct {
-		Status  string           `json:"status"`
-		Message string           `json:"message"`
-		Result  []map[string]any `json:"result"`
+	var raw struct {
+		Status  string `json:"status"`
+		Message string `json:"message"`
+		Result  any    `json:"result"`
 	}
-	if err := json.Unmarshal(data, &resp); err != nil {
+	if err := json.Unmarshal(data, &raw); err != nil {
 		return nil, fmt.Errorf("failed to parse list response: %w", err)
 	}
-	if resp.Result == nil {
+	switch r := raw.Result.(type) {
+	case []any:
+		result := make([]map[string]any, 0, len(r))
+		for _, item := range r {
+			if m, ok := item.(map[string]any); ok {
+				result = append(result, m)
+			}
+		}
+		return result, nil
+	default:
 		return []map[string]any{}, nil
 	}
-	return resp.Result, nil
 }
