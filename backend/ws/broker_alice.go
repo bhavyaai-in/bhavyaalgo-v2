@@ -283,7 +283,9 @@ func mapAliceSymbol(sym string) string {
 	}
 	if mapped, ok := exchMap[exch]; ok {
 		exch = mapped
-		if len(token) >= 4 && token[:3] == "999" {
+		if len(token) >= 5 && token[:5] == "99926" {
+			token = token[3:]
+		} else if len(token) >= 4 && token[:3] == "999" {
 			token = token[3:]
 		}
 	}
