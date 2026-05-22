@@ -1,11 +1,27 @@
 <script setup>
-import { defineProps, defineEmits } from 'vue'
-
 const props = defineProps({ items: { type: Array, default: () => [] }, canAct: { type: Function, default: () => () => false } })
 const emit = defineEmits(['cancel','edit'])
 
 function handleCancel(o) { emit('cancel', o) }
 function handleEdit(o) { emit('edit', o) }
+
+function orderTime(o) {
+  const raw = o.ordertime || o.requesttime || o.timestamp || o.created_at || o.createdAt || o.orderDate || o.orderDateTime || o.dateTime
+  if (!raw) return '-'
+  const asNumber = Number(raw)
+  if (!Number.isNaN(asNumber) && String(raw).match(/^\d+$/)) {
+    const millis = String(raw).length === 10 ? asNumber * 1000 : asNumber
+    const parsed = new Date(millis)
+    if (!Number.isNaN(parsed.getTime())) {
+      return parsed.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' })
+    }
+  }
+  const parsed = new Date(raw)
+  if (!Number.isNaN(parsed.getTime())) {
+    return parsed.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' })
+  }
+  return String(raw)
+}
 
 function statusClass(o) {
   const s = (o.orderstatus || '').toLowerCase()
@@ -21,13 +37,13 @@ function statusClass(o) {
     <table class="data-table">
       <thead>
         <tr>
-          <th>Trading Symbol</th><th>Exchange</th><th>Type</th><th>Qty</th><th>Filled</th><th>Price</th><th>Order Type</th><th>Product</th><th>Status</th><th>Actions</th>
+          <th>Trading Symbol</th><th>Time</th><th>Type</th><th>Qty</th><th>Filled</th><th>Price</th><th>Order Type</th><th>Product</th><th>Status</th><th>Actions</th>
         </tr>
       </thead>
       <tbody>
         <tr v-for="o in items" :key="o.orderid">
           <td><strong>{{ o.tradingsymbol }}</strong></td>
-          <td>{{ o.exchange }}</td><td>{{ o.transactiontype }}</td>
+          <td>{{ o.orderTime }}</td><td>{{ o.transactiontype }}</td>
           <td>{{ o.quantity }}</td><td>{{ o.filledshares }}</td><td>{{ o.price }}</td>
           <td>{{ o.ordertype }}</td><td>{{ o.producttype }}</td>
           <td>

@@ -12,7 +12,7 @@ function fmt(v) { return v == null || v === '' ? '-' : Number(v).toFixed(2) }
           <td><strong>{{ p.tradingsymbol }}</strong></td>
           <td>{{ p.exchange }}</td><td>{{ p.quantity || p.netqty }}</td>
           <td>{{ p.producttype || p.product }}</td>
-          <td :class="{negative: Number(p.profitandloss||p.pnl||0)<0}">{{ fmt(p.profitandloss || p.pnl || 0) }}</td>
+          <td :class="{negative: Number(p.profitandloss||p.pnl||0)<0, positive: Number(p.profitandloss||p.pnl||0)>0}">{{ fmt(p.profitandloss || p.pnl || 0) }}</td>
         </tr>
       </tbody>
     </table>
@@ -27,5 +27,6 @@ function fmt(v) { return v == null || v === '' ? '-' : Number(v).toFixed(2) }
 .data-table th { font-weight:600; color:hsl(var(--foreground)); position:sticky; top:0; background:hsl(var(--card)); }
 .data-table td { color:hsl(var(--muted-foreground)); }
 .data-table td.negative { color:hsl(var(--destructive)); }
+.data-table td.positive { color:#16A34A; }
 .state-msg { text-align:center; padding:2rem; color:hsl(var(--muted-foreground)); }
 </style>

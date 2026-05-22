@@ -4,6 +4,10 @@
 
 package gen
 
+import (
+	"database/sql"
+)
+
 type Broker struct {
 	ID              int64  `json:"id"`
 	FriendlyName    string `json:"friendly_name"`
@@ -58,6 +62,132 @@ type MasterContract struct {
 	Instrumenttype string  `json:"instrumenttype"`
 	TickSize       float64 `json:"tick_size"`
 	CreatedAt      string  `json:"created_at"`
+}
+
+type Order struct {
+	ID                    int64         `json:"id"`
+	BrokerID              int64         `json:"broker_id"`
+	StrategyID            sql.NullInt64 `json:"strategy_id"`
+	PositionID            sql.NullInt64 `json:"position_id"`
+	OrderID               string        `json:"order_id"`
+	StatusMessage         string        `json:"status_message"`
+	Tag                   string        `json:"tag"`
+	Variety               string        `json:"variety"`
+	Tradingsymbol         string        `json:"tradingsymbol"`
+	Exchange              string        `json:"exchange"`
+	InstrumentToken       int64         `json:"instrument_token"`
+	BrokerInstrumentToken int64         `json:"broker_instrument_token"`
+	TransactionType       string        `json:"transaction_type"`
+	Product               string        `json:"product"`
+	OrderType             string        `json:"order_type"`
+	Validity              string        `json:"validity"`
+	Status                string        `json:"status"`
+	Quantity              float64       `json:"quantity"`
+	Price                 float64       `json:"price"`
+	TriggerPrice          float64       `json:"trigger_price"`
+	AveragePrice          float64       `json:"average_price"`
+	FilledQuantity        float64       `json:"filled_quantity"`
+	PendingQuantity       float64       `json:"pending_quantity"`
+	CancelledQuantity     float64       `json:"cancelled_quantity"`
+	CreatedAt             string        `json:"created_at"`
+	UpdatedAt             string        `json:"updated_at"`
+}
+
+type Position struct {
+	ID                    int64         `json:"id"`
+	BrokerID              int64         `json:"broker_id"`
+	StrategyID            sql.NullInt64 `json:"strategy_id"`
+	EntryOrderID          sql.NullInt64 `json:"entry_order_id"`
+	ExitOrderID           sql.NullInt64 `json:"exit_order_id"`
+	Tradingsymbol         string        `json:"tradingsymbol"`
+	StrategyType          int64         `json:"strategy_type"`
+	Exchange              string        `json:"exchange"`
+	InstrumentToken       int64         `json:"instrument_token"`
+	BrokerInstrumentToken int64         `json:"broker_instrument_token"`
+	Quantity              float64       `json:"quantity"`
+	LastPrice             float64       `json:"last_price"`
+	BuyQuantity           float64       `json:"buy_quantity"`
+	SellQuantity          float64       `json:"sell_quantity"`
+	Multiplier            float64       `json:"multiplier"`
+	Side                  string        `json:"side"`
+	BuyPrice              float64       `json:"buy_price"`
+	SellPrice             float64       `json:"sell_price"`
+	Product               string        `json:"product"`
+	Status                string        `json:"status"`
+	Message               string        `json:"message"`
+	CreatedAt             string        `json:"created_at"`
+	UpdatedAt             string        `json:"updated_at"`
+}
+
+type Strategy struct {
+	ID                int64   `json:"id"`
+	Name              string  `json:"name"`
+	StrategySecretKey string  `json:"strategy_secret_key"`
+	StrategyType      int64   `json:"strategy_type"`
+	PositionStatus    int64   `json:"position_status"`
+	InstrumentToken   int64   `json:"instrument_token"`
+	Exchange          string  `json:"exchange"`
+	Side              string  `json:"side"`
+	AtmOtm            float64 `json:"atm_otm"`
+	ImageUrl          string  `json:"image_url"`
+	Color             string  `json:"color"`
+	IsActive          int64   `json:"is_active"`
+	IsLocked          int64   `json:"is_locked"`
+	Message           string  `json:"message"`
+	ExpiryDate        string  `json:"expiry_date"`
+	CreatedAt         string  `json:"created_at"`
+	UpdatedAt         string  `json:"updated_at"`
+}
+
+type StrategyInfo struct {
+	ID         int64  `json:"id"`
+	StrategyID int64  `json:"strategy_id"`
+	Info       string `json:"info"`
+	CreatedAt  string `json:"created_at"`
+	UpdatedAt  string `json:"updated_at"`
+}
+
+type StrategyJoiner struct {
+	ID               int64   `json:"id"`
+	BrokerID         int64   `json:"broker_id"`
+	StrategyID       int64   `json:"strategy_id"`
+	Quantity         float64 `json:"quantity"`
+	ReEntry          int64   `json:"re_entry"`
+	ReEntryTriggered int64   `json:"re_entry_triggered"`
+	Multiplier       float64 `json:"multiplier"`
+	IsActive         int64   `json:"is_active"`
+	CreatedAt        string  `json:"created_at"`
+	UpdatedAt        string  `json:"updated_at"`
+}
+
+type StrategyPosition struct {
+	ID              int64   `json:"id"`
+	StrategyID      int64   `json:"strategy_id"`
+	Tradingsymbol   string  `json:"tradingsymbol"`
+	StrategyType    int64   `json:"strategy_type"`
+	Exchange        string  `json:"exchange"`
+	InstrumentToken int64   `json:"instrument_token"`
+	Quantity        float64 `json:"quantity"`
+	LastPrice       float64 `json:"last_price"`
+	BuyQuantity     float64 `json:"buy_quantity"`
+	Multiplier      float64 `json:"multiplier"`
+	SellQuantity    float64 `json:"sell_quantity"`
+	Side            string  `json:"side"`
+	BuyPrice        float64 `json:"buy_price"`
+	SellPrice       float64 `json:"sell_price"`
+	Product         string  `json:"product"`
+	Status          string  `json:"status"`
+	Message         string  `json:"message"`
+	CreatedAt       string  `json:"created_at"`
+	UpdatedAt       string  `json:"updated_at"`
+}
+
+type StrategyType struct {
+	ID               int64  `json:"id"`
+	Name             string `json:"name"`
+	RulesExplanation string `json:"rules_explanation"`
+	CreatedAt        string `json:"created_at"`
+	UpdatedAt        string `json:"updated_at"`
 }
 
 type SystemSetting struct {

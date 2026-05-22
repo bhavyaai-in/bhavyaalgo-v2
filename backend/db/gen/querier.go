@@ -6,6 +6,7 @@ package gen
 
 import (
 	"context"
+	"database/sql"
 )
 
 type Querier interface {
@@ -13,21 +14,56 @@ type Querier interface {
 	BulkInsertMasterContract(ctx context.Context, arg BulkInsertMasterContractParams) error
 	ClearMasterContracts(ctx context.Context) error
 	CreateBroker(ctx context.Context, arg CreateBrokerParams) (int64, error)
+	CreateOrder(ctx context.Context, arg CreateOrderParams) (int64, error)
+	CreatePosition(ctx context.Context, arg CreatePositionParams) (int64, error)
+	CreateStrategy(ctx context.Context, arg CreateStrategyParams) (int64, error)
+	CreateStrategyInfo(ctx context.Context, arg CreateStrategyInfoParams) (int64, error)
+	CreateStrategyJoiner(ctx context.Context, arg CreateStrategyJoinerParams) (int64, error)
+	CreateStrategyPosition(ctx context.Context, arg CreateStrategyPositionParams) (int64, error)
+	CreateStrategyType(ctx context.Context, arg CreateStrategyTypeParams) (int64, error)
 	CreateWatchlist(ctx context.Context, arg CreateWatchlistParams) (int64, error)
 	DeleteBroker(ctx context.Context, id int64) error
+	DeleteStrategy(ctx context.Context, id int64) error
+	DeleteStrategyInfo(ctx context.Context, id int64) error
+	DeleteStrategyJoiner(ctx context.Context, id int64) error
+	DeleteStrategyType(ctx context.Context, id int64) error
 	DeleteWatchlist(ctx context.Context, id int64) error
+	GetActiveStrategies(ctx context.Context) ([]Strategy, error)
 	GetBroker(ctx context.Context, id int64) (Broker, error)
 	GetBrokerAuth(ctx context.Context, id int64) (GetBrokerAuthRow, error)
 	GetBrokerColumn(ctx context.Context, brokerName string) (string, error)
 	GetBrokerColumnCount(ctx context.Context) (int64, error)
 	GetBrokerListCount(ctx context.Context) (int64, error)
+	GetBrokerStrategyJoiner(ctx context.Context, arg GetBrokerStrategyJoinerParams) (StrategyJoiner, error)
 	GetBrokerToken(ctx context.Context, id int64) (GetBrokerTokenRow, error)
 	GetMasterContractCount(ctx context.Context) (int64, error)
+	GetOrder(ctx context.Context, id int64) (Order, error)
+	GetOrderByOrderId(ctx context.Context, orderID string) (Order, error)
+	GetPosition(ctx context.Context, id int64) (Position, error)
+	GetPositionByEntryOrder(ctx context.Context, entryOrderID sql.NullInt64) (Position, error)
 	GetSetting(ctx context.Context, key string) (string, error)
+	GetStrategy(ctx context.Context, id int64) (Strategy, error)
+	GetStrategyInfo(ctx context.Context, id int64) (StrategyInfo, error)
+	GetStrategyJoiner(ctx context.Context, id int64) (StrategyJoiner, error)
+	GetStrategyPosition(ctx context.Context, id int64) (StrategyPosition, error)
+	GetStrategyType(ctx context.Context, id int64) (StrategyType, error)
 	InsertBrokerListEntry(ctx context.Context, arg InsertBrokerListEntryParams) error
+	ListActiveStrategyJoiners(ctx context.Context) ([]StrategyJoiner, error)
 	ListBrokerColumns(ctx context.Context) ([]BrokerColumn, error)
 	ListBrokerList(ctx context.Context) ([]BrokerList, error)
 	ListBrokers(ctx context.Context) ([]Broker, error)
+	ListOrders(ctx context.Context) ([]Order, error)
+	ListOrdersByBroker(ctx context.Context, brokerID int64) ([]Order, error)
+	ListOrdersByStrategy(ctx context.Context, strategyID sql.NullInt64) ([]Order, error)
+	ListPositions(ctx context.Context) ([]Position, error)
+	ListPositionsByBroker(ctx context.Context, brokerID int64) ([]Position, error)
+	ListPositionsByStrategy(ctx context.Context, strategyID sql.NullInt64) ([]Position, error)
+	ListSettings(ctx context.Context) ([]ListSettingsRow, error)
+	ListStrategies(ctx context.Context) ([]Strategy, error)
+	ListStrategyInfo(ctx context.Context, strategyID int64) ([]StrategyInfo, error)
+	ListStrategyJoiners(ctx context.Context, strategyID int64) ([]StrategyJoiner, error)
+	ListStrategyPositions(ctx context.Context, strategyID int64) ([]StrategyPosition, error)
+	ListStrategyTypes(ctx context.Context) ([]StrategyType, error)
 	ListWatchlistItems(ctx context.Context, watchlistID int64) ([]WatchlistItem, error)
 	ListWatchlists(ctx context.Context) ([]Watchlist, error)
 	RemoveWatchlistItem(ctx context.Context, id int64) error
@@ -35,6 +71,14 @@ type Querier interface {
 	ReorderWatchlistItems(ctx context.Context, arg ReorderWatchlistItemsParams) error
 	SearchMasterContract(ctx context.Context, arg SearchMasterContractParams) ([]MasterContract, error)
 	UpdateBroker(ctx context.Context, arg UpdateBrokerParams) error
+	UpdateOrder(ctx context.Context, arg UpdateOrderParams) error
+	UpdateOrderStatus(ctx context.Context, arg UpdateOrderStatusParams) error
+	UpdatePosition(ctx context.Context, arg UpdatePositionParams) error
+	UpdateStrategy(ctx context.Context, arg UpdateStrategyParams) error
+	UpdateStrategyInfo(ctx context.Context, arg UpdateStrategyInfoParams) error
+	UpdateStrategyJoiner(ctx context.Context, arg UpdateStrategyJoinerParams) error
+	UpdateStrategyPosition(ctx context.Context, arg UpdateStrategyPositionParams) error
+	UpdateStrategyType(ctx context.Context, arg UpdateStrategyTypeParams) error
 	UpdateWatchlist(ctx context.Context, arg UpdateWatchlistParams) error
 	UpsertBrokerColumn(ctx context.Context, arg UpsertBrokerColumnParams) error
 	UpsertSetting(ctx context.Context, arg UpsertSettingParams) error

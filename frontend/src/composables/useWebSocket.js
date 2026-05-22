@@ -36,6 +36,9 @@ function connect() {
       if (msg.type === 'subscribed' && listeners.subscribed) {
         listeners.subscribed.forEach(fn => fn(msg.symbols))
       }
+      if (msg.type === 'notification' && listeners.notification) {
+        listeners.notification.forEach(fn => fn(msg.data))
+      }
     } catch {}
   }
 
@@ -75,7 +78,16 @@ export function useWebSocket() {
     if (listeners.tick) listeners.tick = listeners.tick.filter(f => f !== fn)
   }
 
-  return { subscribe, unsubscribe, onTick, offTick, send }
+  function onNotification(fn) {
+    if (!listeners.notification) listeners.notification = []
+    listeners.notification.push(fn)
+  }
+
+  function offNotification(fn) {
+    if (listeners.notification) listeners.notification = listeners.notification.filter(f => f !== fn)
+  }
+
+  return { subscribe, unsubscribe, onTick, offTick, onNotification, offNotification, send }
 }
 
 export function disconnectWS() {

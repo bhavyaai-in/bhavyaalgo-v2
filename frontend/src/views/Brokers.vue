@@ -1,6 +1,7 @@
 <script setup>
 import { ref, onMounted } from 'vue'
 import { api, confirm } from '../utils/api.js'
+import { useNotificationStore } from '../stores/notification.js'
 import BrokerFormModal from '../modals/brokers/BrokerFormModal.vue'
 import BrokerModal from '../modals/brokers/BrokerModal.vue'
 import PlaceOrderModal from '../modals/brokers/PlaceOrderModal.vue'
@@ -10,6 +11,8 @@ import HoldingsPageDisplay from '../components/brokers/HoldingsPageDisplay.vue'
 import PositionsPageDisplay from '../components/brokers/PositionsPageDisplay.vue'
 import MarginPageDisplay from '../components/brokers/MarginPageDisplay.vue'
 
+
+const notif = useNotificationStore()
 
 const brokers = ref([])
 
@@ -99,17 +102,23 @@ function closeModal() {
   modalBroker.value = null
 }
 
-async function connectBroker(b) {
+  async function connectBroker(b) {
   connecting.value = b.id
   try {
     const res = await api('/api/connect-broker', {
       method: 'POST',
       body: JSON.stringify({ broker_id: b.id }),
+      skipLoader: true,
     })
     b.token_status = 'connected'
     b.broker_token = res.auth_token
     b.feed_token = res.feed_token || ''
     b.message = res.profile_name
+    notif.add({
+      title: 'Connected',
+      message: (b.friendly_name || cap(b.broker_name)) + ' (' + cap(b.broker_name) + ') (' + (res.profile_name || b.broker_userid) + ')',
+      type: 'success',
+    })
   } catch (e) {
     await fetchBrokers()
   } finally {
@@ -155,8 +164,11 @@ onMounted(async () => {
     <div v-else class="broker-grid">
       <div v-for="b in brokers" :key="b.id" class="broker-card">
         <div class="card-header">
-          <strong>{{ cap(b.friendly_name || b.broker_name) }}</strong>
-            <span class="badge" :class="{ connected: b.token_status === 'connected', error: b.token_status === 'error', expired: b.token_status === 'expired' }">
+          <div class="card-title-row">
+            <strong>{{ cap(b.friendly_name || b.broker_name) }}</strong>
+            <a v-if="b.broker_name === 'aliceblue'" :href="'https://ant.aliceblueonline.com/?appcode=' + b.broker_api" target="_blank" class="info-icon" title="Verify app on Alice Blue">&nbsp;i</a>
+          </div>
+          <span class="badge" :class="{ connected: b.token_status === 'connected', error: b.token_status === 'error', expired: b.token_status === 'expired' }">
             <template v-if="b.token_status === 'connected'">{{ b.message }}</template>
             <template v-else-if="b.token_status === 'error'">Error</template>
             <template v-else-if="b.token_status === 'expired'">Expired</template>
@@ -172,9 +184,14 @@ onMounted(async () => {
             :disabled="connecting === b.id"
             :title="b.token_status === 'connected' ? 'Connected (' + b.message + ')' : 'Connect'"
             @click="connectBroker(b)">
-            <svg v-if="connecting !== b.id" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg>
-            <svg v-else class="spin" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10" opacity=".3"/><path d="M12 2a10 10 0 0 1 10 10" stroke-linecap="round"/></svg>
-            <span>{{ b.token_status === 'connected' ? 'Connected' : 'Connect' }}</span>
+            <template v-if="connecting === b.id">
+              <svg class="spin" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10" opacity=".3"/><path d="M12 2a10 10 0 0 1 10 10" stroke-linecap="round"/></svg>
+              <span>Connecting...</span>
+            </template>
+            <template v-else>
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg>
+              <span>{{ b.token_status === 'connected' ? 'Connected' : 'Connect' }}</span>
+            </template>
           </button>
           <button class="chip" :disabled="b.token_status !== 'connected'" @click="openModal('profile', b)">
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
@@ -200,7 +217,7 @@ onMounted(async () => {
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5l-11 7h22l-11-7z"/><polyline points="12 12 12 22"/><line x1="5" y1="14" x2="5" y2="22"/><line x1="19" y1="14" x2="19" y2="22"/></svg>
             <span>Place Order</span>
           </button>
-          <button class="chip" :disabled="b.token_status !== 'connected'" @click="openEdit(b)">
+          <button class="chip" @click="openEdit(b)">
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
             <span>Edit</span>
           </button>
@@ -293,6 +310,15 @@ header h2 { margin: 0; }
   align-items: center;
   margin-bottom: .5rem;
 }
+.card-title-row { display:flex; align-items:center; gap:2px; }
+.info-icon {
+  display:inline-flex; align-items:center; justify-content:center;
+  width:18px; height:18px; border-radius:999px;
+  background:hsl(var(--muted)); color:hsl(var(--muted-foreground));
+  font-size:11px; font-weight:700; font-style:italic; cursor:pointer; text-decoration:none;
+  line-height:1;
+}
+.info-icon:hover { background:hsl(var(--primary)); color:#fff; }
 .badge {
   font-size: var(--font-xs);
   padding: .2rem .5rem;
@@ -340,6 +366,7 @@ header h2 { margin: 0; }
 .modal-data-table th { font-weight: 600; color: hsl(var(--foreground)); position: sticky; top: 0; background: hsl(var(--card)); }
 .modal-data-table td { color: hsl(var(--muted-foreground)); }
 .modal-data-table td.negative { color: hsl(var(--destructive)); }
+.modal-data-table td.positive { color: #16A34A; }
 .status-badge { display: inline-block; padding: .1rem .4rem; border-radius: 999px; font-size: var(--font-xs); font-weight: 600; }
 .status-badge.open { background: hsl(48 100% 50% / .15); color: #b8860b; }
 .status-badge.complete { background: hsl(144 80% 55% / .15); color: #16A34A; }

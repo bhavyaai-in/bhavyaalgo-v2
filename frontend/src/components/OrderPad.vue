@@ -34,7 +34,11 @@ ws.onTick((tick) => {
 })
 
 const tick = computed(() => props.token ? ltpMap.value[props.token] : null)
-const ltp = computed(() => tick.value ? Number(tick.value.ltp || tick.value.close || 0).toFixed(2) : '-')
+const ltp = computed(() => {
+  if (!tick.value) return '-'
+  const value = tick.value.ltp != null ? tick.value.ltp : (tick.value.close != null ? tick.value.close : 0)
+  return Number(value).toFixed(2)
+})
 
 const changeVal = computed(() => {
   if (!tick.value || tick.value.change == null) return null
@@ -228,6 +232,12 @@ async function placeOrder() {
   display: flex; flex-direction: column;
   box-shadow: -4px 0 24px rgba(0,0,0,.08);
 }
+@media (max-width: 600px) {
+  .orderpad-overlay {
+    left: 0; width: 100%; border-left: none;
+    box-shadow: none;
+  }
+}
 
 .orderpad { display: flex; flex-direction: column; height: 100%; }
 
@@ -267,6 +277,9 @@ async function placeOrder() {
 
 /* Body */
 .orderpad-body { flex: 1; padding: 16px; display: flex; flex-direction: column; gap: 16px; }
+@media (max-width: 600px) {
+  .orderpad-body { padding: 12px; gap: 12px; }
+}
 
 .success-section {
   flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 8px;
@@ -274,19 +287,28 @@ async function placeOrder() {
 .success-text { font-size: 1.125rem; font-weight: 700; color: var(--success-600); }
 
 /* Tabs */
-.tabs { display: flex; border-bottom: 1px solid hsl(var(--border)); }
+.tabs { display: flex; border-bottom: 1px solid hsl(var(--border)); overflow-x: auto; }
 .tab {
   padding: 8px 16px; border: none; background: transparent;
   font-size: .8125rem; color: hsl(var(--muted-foreground)); cursor: pointer;
   border-bottom: 2px solid transparent; font-weight: 500; transition: color .15s;
+  white-space: nowrap;
 }
 .tab.active { color: hsl(var(--primary)); border-bottom-color: hsl(var(--primary)); }
 .tab:hover { color: hsl(var(--foreground)); }
+@media (max-width: 600px) {
+  .tabs { gap: 0; }
+  .tab { padding: 8px 12px; font-size: .75rem; }
+}
 
 /* Fields row */
 .fields-row { display: flex; gap: 12px; align-items: flex-start; }
 .field-block { flex: 1; min-width: 0; }
 .price-block { flex: 1.5; }
+@media (max-width: 600px) {
+  .fields-row { flex-direction: column; gap: 12px; }
+  .price-block { flex: 1; }
+}
 .field-label { display: block; font-size: .75rem; color: hsl(var(--muted-foreground)); margin-bottom: 6px; font-weight: 500; white-space: nowrap; }
 
 .segmented { display: inline-flex; border-radius: 6px; overflow: hidden; border: 1px solid hsl(var(--border)); }
@@ -327,6 +349,9 @@ async function placeOrder() {
   padding: 10px 36px; border: none; border-radius: 8px;
   font-size: .875rem; font-weight: 600; cursor: pointer; color: #fff;
   transition: opacity .15s;
+}
+@media (max-width: 600px) {
+  .order-btn { padding: 10px 24px; }
 }
 .order-btn.buy { background: var(--success-600); }
 .order-btn.sell { background: var(--danger-600); }

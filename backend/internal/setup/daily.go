@@ -14,8 +14,9 @@ import (
 )
 
 const (
-	masterContractURL = "https://margincalculator.angelbroking.com/OpenAPI_File/files/OpenAPIScripMaster.json"
-	angelSettingKey   = "master_contract_angel"
+	masterContractURL       = "https://margincalculator.angelbroking.com/OpenAPI_File/files/OpenAPIScripMaster.json"
+	MasterContractSettingKey = "master_contract_angel"
+	angelSettingKey          = MasterContractSettingKey
 )
 
 // DownloadMasterContract downloads & processes the Angel One master contract JSON.

@@ -8,7 +8,9 @@ import OrdersPage from '../components/brokers/OrdersPageDisplay.vue'
 import PositionsPage from '../components/brokers/PositionsPageDisplay.vue'
 import MarginPage from '../components/brokers/MarginPageDisplay.vue'
 import TradingWatchlist from '../components/TradingWatchlist.vue'
-import OrderPad from '../components/OrderPad.vue'
+import PlaceOrderModal from '../modals/brokers/PlaceOrderModal.vue'
+import StrategiesPage from '../components/strategies/StrategiesPage.vue'
+import SettingsPage from '../components/settings/SettingsPage.vue'
 
 const router = useRouter()
 const route = useRoute()
@@ -19,23 +21,17 @@ const email = computed(() => auth.email)
 const activeTab = computed(() => route.path === '/' ? 'dashboard' : route.path.slice(1))
 const menuOpen = ref(false)
 const watchlistOpen = ref(false)
-const orderSymbol = ref(null)
-const orderToken = ref(null)
-const orderExchange = ref(null)
-const orderPadOpen = ref(false)
+const orderContract = ref(null)
+const orderModalOpen = ref(false)
 
 function onPlaceOrder(item) {
-  orderSymbol.value = item.symbol
-  orderToken.value = item.token
-  orderExchange.value = item.exchange
-  orderPadOpen.value = true
+  orderContract.value = { symbol: item.symbol, token: item.token, exchange: item.exchange, name: item.name || item.symbol }
+  orderModalOpen.value = true
 }
 
-function closeOrderPad() {
-  orderPadOpen.value = false
-  orderSymbol.value = null
-  orderToken.value = null
-  orderExchange.value = null
+function closeOrderModal() {
+  orderModalOpen.value = false
+  orderContract.value = null
 }
 
 function go(tab) {
@@ -63,6 +59,8 @@ function handleLogout() {
           <button :class="{ active: activeTab === 'positions' }" @click="go('positions')">Positions</button>
           <button :class="{ active: activeTab === 'holdings' }" @click="go('holdings')">Holdings</button>
           <button :class="{ active: activeTab === 'margin' }" @click="go('margin')">Margin</button>
+          <button :class="{ active: activeTab === 'strategies' }" @click="go('strategies')">Strategies</button>
+          <button :class="{ active: activeTab === 'settings' }" @click="go('settings')">Settings</button>
         </nav>
       </div>
       <div class="top-right">
@@ -81,6 +79,8 @@ function handleLogout() {
       <button :class="{ active: activeTab === 'positions' }" @click="go('positions')">Positions</button>
       <button :class="{ active: activeTab === 'holdings' }" @click="go('holdings')">Holdings</button>
       <button :class="{ active: activeTab === 'margin' }" @click="go('margin')">Margin</button>
+      <button :class="{ active: activeTab === 'strategies' }" @click="go('strategies')">Strategies</button>
+      <button :class="{ active: activeTab === 'settings' }" @click="go('settings')">Settings</button>
       <button @click="watchlistOpen = true; menuOpen = false">📋 Watchlist</button>
       <button class="mobile-logout" @click="handleLogout">Logout</button>
     </nav>
@@ -100,13 +100,13 @@ function handleLogout() {
         <section v-if="activeTab === 'positions'" class="tab-content"><PositionsPage /></section>
         <section v-if="activeTab === 'holdings'" class="tab-content"><HoldingsPage /></section>
         <section v-if="activeTab === 'margin'" class="tab-content"><MarginPage /></section>
+        <section v-if="activeTab === 'strategies'" class="tab-content"><StrategiesPage /></section>
+        <section v-if="activeTab === 'settings'" class="tab-content"><SettingsPage /></section>
       </main>
-      <OrderPad
-        :show="orderPadOpen"
-        :symbol="orderSymbol"
-        :token="orderToken"
-        :exchange="orderExchange"
-        @close="closeOrderPad"
+      <PlaceOrderModal
+        :show="orderModalOpen"
+        :preset-contract="orderContract"
+        @close="closeOrderModal"
       />
     </div>
   </div>

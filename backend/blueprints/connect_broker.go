@@ -1,14 +1,18 @@
 package blueprints
 
 import (
+	"context"
 	"database/sql"
 	"encoding/json"
 	"log"
 	"net/http"
 	"os"
 	"strings"
+	"time"
 
+	"bhavyaaialgo/backend/brokers/aliceblue"
 	"bhavyaaialgo/backend/brokers/angel"
+	"bhavyaaialgo/backend/internal/setup"
 
 	"github.com/xlzd/gotp"
 )
@@ -68,6 +72,13 @@ func (a *App) handleConnectBroker(w http.ResponseWriter, r *http.Request) {
 		if err == nil {
 			profileName, err = angel.FetchProfile(authToken, apiKey)
 		}
+	case "aliceblue":
+		appCode := b.BrokerAPI
+		apiSecret := b.BrokerAPISecret
+		authToken, feedToken, _, err = aliceblue.AuthenticateBroker(b.BrokerUserid, b.BrokerPassword, b.BrokerQrKey, appCode, apiSecret)
+		if err == nil {
+			profileName, err = aliceblue.FetchProfile(authToken, appCode, apiSecret)
+		}
 	default:
 		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "unsupported broker: " + b.BrokerName})
 		return
@@ -93,7 +104,38 @@ func (a *App) handleConnectBroker(w http.ResponseWriter, r *http.Request) {
 	})
 
 	// Start the broker stream after successful connection
-	a.startBrokerStream(b.BrokerUserid, authToken, feedToken, apiKey)
+	if b.BrokerName == "aliceblue" {
+		a.startAliceBrokerStream(b.BrokerUserid, authToken)
+	} else {
+		a.startBrokerStream(b.BrokerUserid, authToken, feedToken, apiKey)
+	}
+
+	// Download master contracts in background and notify frontend
+	go func() {
+		lastVal, _ := a.Q.GetSetting(context.Background(), setup.MasterContractSettingKey)
+		if lastVal != "" {
+			if t, err := time.Parse(time.RFC3339, lastVal); err == nil {
+				if time.Since(t) < 24*time.Hour {
+					return
+				}
+			}
+		}
+		if a.Hub != nil {
+			a.Hub.BroadcastNotification(map[string]any{
+				"title":   "Downloading Master Contracts",
+				"message": "Angel One master contract update started in background",
+				"type":    "info",
+			})
+		}
+		setup.DownloadMasterContract(context.Background(), a.Q)
+		if a.Hub != nil {
+			a.Hub.BroadcastNotification(map[string]any{
+				"title":   "Master Contracts Updated",
+				"message": "Angel One master contract has been downloaded successfully",
+				"type":    "success",
+			})
+		}
+	}()
 }
 
 func generateTOTP(secret string) (code string) {
@@ -152,6 +194,31 @@ func (a *App) startBrokerStream(clientCode, authToken, feedToken, apiKey string)
 
 	symbols := loadWatchlistSymbols(a.DB)
 	a.Hub.StartBroker(clientCode, authToken, feedToken, apiKey, tokenSymbol, symbols)
+}
+
+func (a *App) startAliceBrokerStream(clientID, sessionToken string) {
+	if a.Hub == nil {
+		return
+	}
+
+	tokenSymbol := make(map[string]string)
+	rows, err := a.DB.Query(`SELECT token, symbol FROM master_contracts`)
+	if err == nil {
+		for rows.Next() {
+			var token, symbol string
+			if rows.Scan(&token, &symbol) == nil {
+				tokenSymbol[token] = symbol
+			}
+		}
+		rows.Close()
+	}
+
+	if err := aliceblue.CreateWsSession(sessionToken, clientID, "", ""); err != nil {
+		log.Printf("alice: createWsSess failed: %v", err)
+	}
+
+	symbols := loadWatchlistSymbols(a.DB)
+	a.Hub.StartAliceBroker(sessionToken, clientID, tokenSymbol, symbols)
 }
 
 func loadWatchlistSymbols(db *sql.DB) []string {

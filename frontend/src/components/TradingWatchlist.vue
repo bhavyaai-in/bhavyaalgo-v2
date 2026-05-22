@@ -154,7 +154,8 @@ function tickData(item) {
 function ltpDisplay(item) {
   const t = tickData(item)
   if (!t) return '-'
-  return Number(t.ltp || t.close || 0).toFixed(2)
+  const value = t.ltp != null ? t.ltp : (t.close != null ? t.close : 0)
+  return Number(value).toFixed(2)
 }
 
 function changeDisplay(item) {

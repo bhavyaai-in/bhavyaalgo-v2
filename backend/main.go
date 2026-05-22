@@ -4,12 +4,14 @@ import (
 	"context"
 	"database/sql"
 	"encoding/json"
+	"fmt"
 	"log"
 	"net/http"
 	"os"
 	"path/filepath"
 
 	"bhavyaaialgo/backend/blueprints"
+	"bhavyaaialgo/backend/brokers/aliceblue"
 	"bhavyaaialgo/backend/db/gen"
 	"bhavyaaialgo/backend/internal/config"
 	"bhavyaaialgo/backend/internal/service"
@@ -30,7 +32,7 @@ func main() {
 	if err != nil {
 		log.Fatalf("config: %v", err)
 	}
-
+	fmt.Printf("Starting server with config: %+v\n", cfg)
 	initDB()
 	ctx := context.Background()
 	setup.SeedFromFile(ctx, Q)
@@ -57,6 +59,8 @@ func main() {
 	app.RegisterBrokerProfileRoutes(mux)
 	app.RegisterBrokerDataRoutes(mux)
 	app.RegisterWatchlistRoutes(mux)
+	app.RegisterStrategyRoutes(mux)
+	app.RegisterSettingsRoutes(mux)
 
 	mux.HandleFunc("GET /ws", func(w http.ResponseWriter, r *http.Request) {
 		// Upgrade requires auth via query param or header
@@ -81,14 +85,23 @@ func main() {
 		hub.HandleWebSocket(conn)
 	})
 
-	// Start Angel One broker stream if a connected broker exists
+	// Start broker stream with priority: aliceblue > angel
 	go func() {
-		var clientCode, authToken, feedToken, apiKey string
-		err := db.QueryRow(`SELECT broker_userid, broker_token, feed_token, broker_api FROM brokers WHERE token_status='connected' AND DATE(broker_token_date) = DATE('now','localtime') LIMIT 1`).Scan(&clientCode, &authToken, &feedToken, &apiKey)
-		if err == nil && clientCode != "" {
-			tokenSymbol := loadTokenSymbolMap(db)
-			symbols := loadWatchlistSymbols(db)
-			hub.StartBroker(clientCode, authToken, feedToken, apiKey, tokenSymbol, symbols)
+		tokenSymbol := loadTokenSymbolMap(db)
+		symbols := loadWatchlistSymbols(db)
+
+		var aliceClientID, aliceSession, angelClient, angelAuth, angelFeed, angelKey string
+
+		db.QueryRow(`SELECT broker_userid, broker_token FROM brokers WHERE broker_name='aliceblue' AND token_status='connected' AND DATE(broker_token_date) = DATE('now','localtime') LIMIT 1`).Scan(&aliceClientID, &aliceSession)
+		db.QueryRow(`SELECT broker_userid, broker_token, feed_token, broker_api FROM brokers WHERE broker_name='angel' AND token_status='connected' AND DATE(broker_token_date) = DATE('now','localtime') LIMIT 1`).Scan(&angelClient, &angelAuth, &angelFeed, &angelKey)
+
+		if aliceSession != "" {
+			aliceblue.CreateWsSession(aliceSession, aliceClientID, "", "")
+			hub.StartAliceBroker(aliceSession, aliceClientID, tokenSymbol, symbols)
+			log.Printf("auto-start: aliceblue broker stream")
+		} else if angelAuth != "" {
+			hub.StartBroker(angelClient, angelAuth, angelFeed, angelKey, tokenSymbol, symbols)
+			log.Printf("auto-start: angel broker stream")
 		}
 	}()
 
@@ -97,6 +110,9 @@ func main() {
 		fs := http.FileServer(http.Dir(staticDir))
 		mux.Handle("GET /assets/*", fs)
 		mux.HandleFunc("GET /", func(w http.ResponseWriter, r *http.Request) {
+			http.ServeFile(w, r, filepath.Join(staticDir, "index.html"))
+		})
+		mux.HandleFunc("GET /strategies", func(w http.ResponseWriter, r *http.Request) {
 			http.ServeFile(w, r, filepath.Join(staticDir, "index.html"))
 		})
 	}
@@ -124,7 +140,7 @@ func initDB() {
 }
 
 func createTables() {
-	for _, sql := range []string{watchlistsTableSQL, watchlistItemsTableSQL, watchlistItemsIdxSQL, masterContractsTableSQL, systemSettingsTableSQL, brokerListTableSQL, brokerColumnsTableSQL, brokersTableSQL} {
+	for _, sql := range []string{watchlistsTableSQL, watchlistItemsTableSQL, watchlistItemsIdxSQL, masterContractsTableSQL, systemSettingsTableSQL, brokerListTableSQL, brokerColumnsTableSQL, brokersTableSQL, strategyTypesTableSQL, strategiesTableSQL, strategyInfoTableSQL, strategyJoinersTableSQL, positionsTableSQL, strategyPositionsTableSQL, ordersTableSQL} {
 		if _, err := db.Exec(sql); err != nil {
 			log.Fatalf("create table: %v", err)
 		}
@@ -283,3 +299,149 @@ CREATE TABLE IF NOT EXISTS brokers (
 	created_at TEXT NOT NULL DEFAULT (datetime('now','localtime')),
 	updated_at TEXT NOT NULL DEFAULT (datetime('now','localtime'))
 )`
+
+const strategyTypesTableSQL = `
+CREATE TABLE IF NOT EXISTS strategy_types (
+	id INTEGER PRIMARY KEY AUTOINCREMENT,
+	name TEXT NOT NULL,
+	rules_explanation TEXT NOT NULL,
+	created_at TEXT NOT NULL DEFAULT (datetime('now','localtime')),
+	updated_at TEXT NOT NULL DEFAULT (datetime('now','localtime'))
+)`
+
+const strategiesTableSQL = `
+CREATE TABLE IF NOT EXISTS strategies (
+	id INTEGER PRIMARY KEY AUTOINCREMENT,
+	name TEXT NOT NULL,
+	strategy_secret_key TEXT NOT NULL,
+	strategy_type INTEGER NOT NULL REFERENCES strategy_types(id),
+	position_status INTEGER NOT NULL DEFAULT 0,
+	instrument_token INTEGER NOT NULL DEFAULT 0,
+	exchange TEXT NOT NULL DEFAULT '',
+	side TEXT NOT NULL DEFAULT 'SELL',
+	atm_otm REAL NOT NULL DEFAULT 0,
+	image_url TEXT NOT NULL DEFAULT '',
+	color TEXT NOT NULL,
+	is_active INTEGER NOT NULL DEFAULT 0,
+	is_locked INTEGER NOT NULL DEFAULT 0,
+	message TEXT NOT NULL DEFAULT '',
+	expiry_date TEXT NOT NULL,
+	created_at TEXT NOT NULL DEFAULT (datetime('now','localtime')),
+	updated_at TEXT NOT NULL DEFAULT (datetime('now','localtime'))
+);
+CREATE INDEX IF NOT EXISTS idx_strategies_type ON strategies(strategy_type);
+CREATE INDEX IF NOT EXISTS idx_strategies_active ON strategies(is_active);`
+
+const strategyInfoTableSQL = `
+CREATE TABLE IF NOT EXISTS strategy_info (
+	id INTEGER PRIMARY KEY AUTOINCREMENT,
+	strategy_id INTEGER NOT NULL REFERENCES strategies(id) ON DELETE CASCADE,
+	info TEXT NOT NULL,
+	created_at TEXT NOT NULL DEFAULT (datetime('now','localtime')),
+	updated_at TEXT NOT NULL DEFAULT (datetime('now','localtime'))
+);
+CREATE INDEX IF NOT EXISTS idx_si_strategy ON strategy_info(strategy_id);`
+
+const strategyJoinersTableSQL = `
+CREATE TABLE IF NOT EXISTS strategy_joiners (
+	id INTEGER PRIMARY KEY AUTOINCREMENT,
+	broker_id INTEGER NOT NULL REFERENCES brokers(id) ON DELETE CASCADE,
+	strategy_id INTEGER NOT NULL REFERENCES strategies(id) ON DELETE CASCADE,
+	quantity REAL NOT NULL,
+	re_entry INTEGER NOT NULL,
+	re_entry_triggered INTEGER NOT NULL DEFAULT 0,
+	multiplier REAL NOT NULL DEFAULT 1,
+	is_active INTEGER NOT NULL DEFAULT 0,
+	created_at TEXT NOT NULL DEFAULT (datetime('now','localtime')),
+	updated_at TEXT NOT NULL DEFAULT (datetime('now','localtime'))
+);
+CREATE INDEX IF NOT EXISTS idx_sj_broker ON strategy_joiners(broker_id);
+CREATE INDEX IF NOT EXISTS idx_sj_strategy ON strategy_joiners(strategy_id);`
+
+const positionsTableSQL = `
+CREATE TABLE IF NOT EXISTS positions (
+	id INTEGER PRIMARY KEY AUTOINCREMENT,
+	broker_id INTEGER NOT NULL REFERENCES brokers(id),
+	strategy_id INTEGER REFERENCES strategies(id) ON DELETE CASCADE,
+	entry_order_id INTEGER UNIQUE,
+	exit_order_id INTEGER UNIQUE,
+	tradingsymbol TEXT NOT NULL,
+	strategy_type INTEGER NOT NULL REFERENCES strategy_types(id),
+	exchange TEXT NOT NULL,
+	instrument_token INTEGER NOT NULL,
+	broker_instrument_token INTEGER NOT NULL,
+	quantity REAL NOT NULL DEFAULT 0,
+	last_price REAL NOT NULL DEFAULT 0,
+	buy_quantity REAL NOT NULL DEFAULT 0,
+	sell_quantity REAL NOT NULL DEFAULT 0,
+	multiplier REAL NOT NULL DEFAULT 0,
+	side TEXT NOT NULL DEFAULT 'SELL',
+	buy_price REAL NOT NULL DEFAULT 0,
+	sell_price REAL NOT NULL DEFAULT 0,
+	product TEXT NOT NULL,
+	status TEXT NOT NULL DEFAULT '0',
+	message TEXT NOT NULL DEFAULT '',
+	created_at TEXT NOT NULL DEFAULT (datetime('now','localtime')),
+	updated_at TEXT NOT NULL DEFAULT (datetime('now','localtime'))
+);
+CREATE INDEX IF NOT EXISTS idx_pos_broker ON positions(broker_id);
+CREATE INDEX IF NOT EXISTS idx_pos_strategy ON positions(strategy_id);
+CREATE INDEX IF NOT EXISTS idx_pos_strategy_type ON positions(strategy_type);`
+
+const strategyPositionsTableSQL = `
+CREATE TABLE IF NOT EXISTS strategy_positions (
+	id INTEGER PRIMARY KEY AUTOINCREMENT,
+	strategy_id INTEGER NOT NULL REFERENCES strategies(id) ON DELETE CASCADE,
+	tradingsymbol TEXT NOT NULL,
+	strategy_type INTEGER NOT NULL REFERENCES strategy_types(id),
+	exchange TEXT NOT NULL,
+	instrument_token INTEGER NOT NULL,
+	quantity REAL NOT NULL DEFAULT 0,
+	last_price REAL NOT NULL DEFAULT 0,
+	buy_quantity REAL NOT NULL DEFAULT 0,
+	multiplier REAL NOT NULL DEFAULT 0,
+	sell_quantity REAL NOT NULL DEFAULT 0,
+	side TEXT NOT NULL DEFAULT 'SELL',
+	buy_price REAL NOT NULL DEFAULT 0,
+	sell_price REAL NOT NULL DEFAULT 0,
+	product TEXT NOT NULL,
+	status TEXT NOT NULL DEFAULT '0',
+	message TEXT NOT NULL DEFAULT '',
+	created_at TEXT NOT NULL DEFAULT (datetime('now','localtime')),
+	updated_at TEXT NOT NULL DEFAULT (datetime('now','localtime'))
+);
+CREATE INDEX IF NOT EXISTS idx_sp_strategy ON strategy_positions(strategy_id);`
+
+const ordersTableSQL = `
+CREATE TABLE IF NOT EXISTS orders (
+	id INTEGER PRIMARY KEY AUTOINCREMENT,
+	broker_id INTEGER NOT NULL REFERENCES brokers(id),
+	strategy_id INTEGER REFERENCES strategies(id),
+	position_id INTEGER REFERENCES positions(id),
+	order_id TEXT NOT NULL,
+	status_message TEXT NOT NULL DEFAULT '',
+	tag TEXT NOT NULL,
+	variety TEXT NOT NULL,
+	tradingsymbol TEXT NOT NULL,
+	exchange TEXT NOT NULL,
+	instrument_token INTEGER NOT NULL,
+	broker_instrument_token INTEGER NOT NULL,
+	transaction_type TEXT NOT NULL,
+	product TEXT NOT NULL,
+	order_type TEXT NOT NULL,
+	validity TEXT NOT NULL DEFAULT 'DAY',
+	status TEXT NOT NULL,
+	quantity REAL NOT NULL,
+	price REAL NOT NULL,
+	trigger_price REAL NOT NULL,
+	average_price REAL NOT NULL,
+	filled_quantity REAL NOT NULL,
+	pending_quantity REAL NOT NULL,
+	cancelled_quantity REAL NOT NULL,
+	created_at TEXT NOT NULL DEFAULT (datetime('now','localtime')),
+	updated_at TEXT NOT NULL DEFAULT (datetime('now','localtime'))
+);
+CREATE INDEX IF NOT EXISTS idx_orders_broker ON orders(broker_id);
+CREATE INDEX IF NOT EXISTS idx_orders_strategy ON orders(strategy_id);
+CREATE INDEX IF NOT EXISTS idx_orders_order_id ON orders(order_id);
+CREATE INDEX IF NOT EXISTS idx_orders_tag ON orders(tag);`

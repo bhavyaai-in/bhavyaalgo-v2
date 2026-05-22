@@ -10,6 +10,8 @@ const routes = [
   { path: '/positions', component: Dashboard, meta: { requiresAuth: true } },
   { path: '/holdings', component: Dashboard, meta: { requiresAuth: true } },
   { path: '/margin', component: Dashboard, meta: { requiresAuth: true } },
+  { path: '/strategies', component: Dashboard, meta: { requiresAuth: true } },
+  { path: '/settings', component: Dashboard, meta: { requiresAuth: true } },
 ]
 
 const router = createRouter({

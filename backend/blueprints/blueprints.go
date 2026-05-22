@@ -46,6 +46,10 @@ func (a *App) authMiddleware(next http.HandlerFunc) http.HandlerFunc {
 	}
 }
 
+func decodeJSON(r *http.Request, v any) error {
+	return json.NewDecoder(r.Body).Decode(v)
+}
+
 func recoverHandler(next http.HandlerFunc) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		defer func() {

@@ -7,8 +7,12 @@ export function setRouter(r) {
 }
 
 export async function api(path, opts = {}) {
-  const ui = useUiStore()
-  ui.startRequest()
+  const skipLoader = opts.skipLoader
+  delete opts.skipLoader
+  if (!skipLoader) {
+    const ui = useUiStore()
+    ui.startRequest()
+  }
   try {
     const token = localStorage.getItem('token')
     const res = await fetch(path, {
@@ -23,7 +27,10 @@ export async function api(path, opts = {}) {
     if (!res.ok) throw new Error(await res.text())
     return await res.json()
   } finally {
-    ui.endRequest()
+    if (!skipLoader) {
+      const ui = useUiStore()
+      ui.endRequest()
+    }
   }
 }
 

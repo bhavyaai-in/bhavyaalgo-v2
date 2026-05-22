@@ -307,12 +307,19 @@ func parseTick(buf []byte, tokenSymbol map[string]string) map[string]any {
 		if len(buf) < 47 {
 			return nil
 		}
-		tick["ltp"] = float64(int64(binary.LittleEndian.Uint32(buf[43:47]))) / 100
+		ltp := float64(int64(binary.LittleEndian.Uint32(buf[43:47]))) / 100
+		if ltp <= 0 {
+			return nil
+		}
+		tick["ltp"] = ltp
 	case ModeQuote:
 		if len(buf) < 123 {
 			return nil
 		}
 		ltp := int64(binary.LittleEndian.Uint64(buf[43:51]))
+		if ltp <= 0 {
+			return nil
+		}
 		closeP := int64(binary.LittleEndian.Uint64(buf[115:123]))
 		tick["ltp"] = float64(ltp) / 100
 		tick["change"] = float64(ltp-closeP) / 100
@@ -326,6 +333,9 @@ func parseTick(buf []byte, tokenSymbol map[string]string) map[string]any {
 			return nil
 		}
 		ltp := int64(binary.LittleEndian.Uint64(buf[43:51]))
+		if ltp <= 0 {
+			return nil
+		}
 		closeP := int64(binary.LittleEndian.Uint64(buf[115:123]))
 		tick["ltp"] = float64(ltp) / 100
 		tick["change"] = float64(ltp-closeP) / 100

@@ -7,6 +7,7 @@ package gen
 
 import (
 	"context"
+	"database/sql"
 )
 
 const addWatchlistItem = `-- name: AddWatchlistItem :one
@@ -149,6 +150,278 @@ func (q *Queries) CreateBroker(ctx context.Context, arg CreateBrokerParams) (int
 	return id, err
 }
 
+const createOrder = `-- name: CreateOrder :one
+INSERT INTO orders (broker_id, strategy_id, position_id, order_id, status_message, tag, variety, tradingsymbol, exchange, instrument_token, broker_instrument_token, transaction_type, product, order_type, validity, status, quantity, price, trigger_price, average_price, filled_quantity, pending_quantity, cancelled_quantity)
+VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) RETURNING id
+`
+
+type CreateOrderParams struct {
+	BrokerID              int64         `json:"broker_id"`
+	StrategyID            sql.NullInt64 `json:"strategy_id"`
+	PositionID            sql.NullInt64 `json:"position_id"`
+	OrderID               string        `json:"order_id"`
+	StatusMessage         string        `json:"status_message"`
+	Tag                   string        `json:"tag"`
+	Variety               string        `json:"variety"`
+	Tradingsymbol         string        `json:"tradingsymbol"`
+	Exchange              string        `json:"exchange"`
+	InstrumentToken       int64         `json:"instrument_token"`
+	BrokerInstrumentToken int64         `json:"broker_instrument_token"`
+	TransactionType       string        `json:"transaction_type"`
+	Product               string        `json:"product"`
+	OrderType             string        `json:"order_type"`
+	Validity              string        `json:"validity"`
+	Status                string        `json:"status"`
+	Quantity              float64       `json:"quantity"`
+	Price                 float64       `json:"price"`
+	TriggerPrice          float64       `json:"trigger_price"`
+	AveragePrice          float64       `json:"average_price"`
+	FilledQuantity        float64       `json:"filled_quantity"`
+	PendingQuantity       float64       `json:"pending_quantity"`
+	CancelledQuantity     float64       `json:"cancelled_quantity"`
+}
+
+func (q *Queries) CreateOrder(ctx context.Context, arg CreateOrderParams) (int64, error) {
+	row := q.db.QueryRowContext(ctx, createOrder,
+		arg.BrokerID,
+		arg.StrategyID,
+		arg.PositionID,
+		arg.OrderID,
+		arg.StatusMessage,
+		arg.Tag,
+		arg.Variety,
+		arg.Tradingsymbol,
+		arg.Exchange,
+		arg.InstrumentToken,
+		arg.BrokerInstrumentToken,
+		arg.TransactionType,
+		arg.Product,
+		arg.OrderType,
+		arg.Validity,
+		arg.Status,
+		arg.Quantity,
+		arg.Price,
+		arg.TriggerPrice,
+		arg.AveragePrice,
+		arg.FilledQuantity,
+		arg.PendingQuantity,
+		arg.CancelledQuantity,
+	)
+	var id int64
+	err := row.Scan(&id)
+	return id, err
+}
+
+const createPosition = `-- name: CreatePosition :one
+INSERT INTO positions (broker_id, strategy_id, entry_order_id, exit_order_id, tradingsymbol, strategy_type, exchange, instrument_token, broker_instrument_token, quantity, last_price, buy_quantity, sell_quantity, multiplier, side, buy_price, sell_price, product, status, message)
+VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) RETURNING id
+`
+
+type CreatePositionParams struct {
+	BrokerID              int64         `json:"broker_id"`
+	StrategyID            sql.NullInt64 `json:"strategy_id"`
+	EntryOrderID          sql.NullInt64 `json:"entry_order_id"`
+	ExitOrderID           sql.NullInt64 `json:"exit_order_id"`
+	Tradingsymbol         string        `json:"tradingsymbol"`
+	StrategyType          int64         `json:"strategy_type"`
+	Exchange              string        `json:"exchange"`
+	InstrumentToken       int64         `json:"instrument_token"`
+	BrokerInstrumentToken int64         `json:"broker_instrument_token"`
+	Quantity              float64       `json:"quantity"`
+	LastPrice             float64       `json:"last_price"`
+	BuyQuantity           float64       `json:"buy_quantity"`
+	SellQuantity          float64       `json:"sell_quantity"`
+	Multiplier            float64       `json:"multiplier"`
+	Side                  string        `json:"side"`
+	BuyPrice              float64       `json:"buy_price"`
+	SellPrice             float64       `json:"sell_price"`
+	Product               string        `json:"product"`
+	Status                string        `json:"status"`
+	Message               string        `json:"message"`
+}
+
+func (q *Queries) CreatePosition(ctx context.Context, arg CreatePositionParams) (int64, error) {
+	row := q.db.QueryRowContext(ctx, createPosition,
+		arg.BrokerID,
+		arg.StrategyID,
+		arg.EntryOrderID,
+		arg.ExitOrderID,
+		arg.Tradingsymbol,
+		arg.StrategyType,
+		arg.Exchange,
+		arg.InstrumentToken,
+		arg.BrokerInstrumentToken,
+		arg.Quantity,
+		arg.LastPrice,
+		arg.BuyQuantity,
+		arg.SellQuantity,
+		arg.Multiplier,
+		arg.Side,
+		arg.BuyPrice,
+		arg.SellPrice,
+		arg.Product,
+		arg.Status,
+		arg.Message,
+	)
+	var id int64
+	err := row.Scan(&id)
+	return id, err
+}
+
+const createStrategy = `-- name: CreateStrategy :one
+INSERT INTO strategies (name, strategy_secret_key, strategy_type, position_status, instrument_token, exchange, side, atm_otm, image_url, color, is_active, is_locked, message, expiry_date)
+VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) RETURNING id
+`
+
+type CreateStrategyParams struct {
+	Name              string  `json:"name"`
+	StrategySecretKey string  `json:"strategy_secret_key"`
+	StrategyType      int64   `json:"strategy_type"`
+	PositionStatus    int64   `json:"position_status"`
+	InstrumentToken   int64   `json:"instrument_token"`
+	Exchange          string  `json:"exchange"`
+	Side              string  `json:"side"`
+	AtmOtm            float64 `json:"atm_otm"`
+	ImageUrl          string  `json:"image_url"`
+	Color             string  `json:"color"`
+	IsActive          int64   `json:"is_active"`
+	IsLocked          int64   `json:"is_locked"`
+	Message           string  `json:"message"`
+	ExpiryDate        string  `json:"expiry_date"`
+}
+
+func (q *Queries) CreateStrategy(ctx context.Context, arg CreateStrategyParams) (int64, error) {
+	row := q.db.QueryRowContext(ctx, createStrategy,
+		arg.Name,
+		arg.StrategySecretKey,
+		arg.StrategyType,
+		arg.PositionStatus,
+		arg.InstrumentToken,
+		arg.Exchange,
+		arg.Side,
+		arg.AtmOtm,
+		arg.ImageUrl,
+		arg.Color,
+		arg.IsActive,
+		arg.IsLocked,
+		arg.Message,
+		arg.ExpiryDate,
+	)
+	var id int64
+	err := row.Scan(&id)
+	return id, err
+}
+
+const createStrategyInfo = `-- name: CreateStrategyInfo :one
+INSERT INTO strategy_info (strategy_id, info) VALUES (?, ?) RETURNING id
+`
+
+type CreateStrategyInfoParams struct {
+	StrategyID int64  `json:"strategy_id"`
+	Info       string `json:"info"`
+}
+
+func (q *Queries) CreateStrategyInfo(ctx context.Context, arg CreateStrategyInfoParams) (int64, error) {
+	row := q.db.QueryRowContext(ctx, createStrategyInfo, arg.StrategyID, arg.Info)
+	var id int64
+	err := row.Scan(&id)
+	return id, err
+}
+
+const createStrategyJoiner = `-- name: CreateStrategyJoiner :one
+INSERT INTO strategy_joiners (broker_id, strategy_id, quantity, re_entry, re_entry_triggered, multiplier, is_active)
+VALUES (?, ?, ?, ?, ?, ?, ?) RETURNING id
+`
+
+type CreateStrategyJoinerParams struct {
+	BrokerID         int64   `json:"broker_id"`
+	StrategyID       int64   `json:"strategy_id"`
+	Quantity         float64 `json:"quantity"`
+	ReEntry          int64   `json:"re_entry"`
+	ReEntryTriggered int64   `json:"re_entry_triggered"`
+	Multiplier       float64 `json:"multiplier"`
+	IsActive         int64   `json:"is_active"`
+}
+
+func (q *Queries) CreateStrategyJoiner(ctx context.Context, arg CreateStrategyJoinerParams) (int64, error) {
+	row := q.db.QueryRowContext(ctx, createStrategyJoiner,
+		arg.BrokerID,
+		arg.StrategyID,
+		arg.Quantity,
+		arg.ReEntry,
+		arg.ReEntryTriggered,
+		arg.Multiplier,
+		arg.IsActive,
+	)
+	var id int64
+	err := row.Scan(&id)
+	return id, err
+}
+
+const createStrategyPosition = `-- name: CreateStrategyPosition :one
+INSERT INTO strategy_positions (strategy_id, tradingsymbol, strategy_type, exchange, instrument_token, quantity, last_price, buy_quantity, multiplier, sell_quantity, side, buy_price, sell_price, product, status, message)
+VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) RETURNING id
+`
+
+type CreateStrategyPositionParams struct {
+	StrategyID      int64   `json:"strategy_id"`
+	Tradingsymbol   string  `json:"tradingsymbol"`
+	StrategyType    int64   `json:"strategy_type"`
+	Exchange        string  `json:"exchange"`
+	InstrumentToken int64   `json:"instrument_token"`
+	Quantity        float64 `json:"quantity"`
+	LastPrice       float64 `json:"last_price"`
+	BuyQuantity     float64 `json:"buy_quantity"`
+	Multiplier      float64 `json:"multiplier"`
+	SellQuantity    float64 `json:"sell_quantity"`
+	Side            string  `json:"side"`
+	BuyPrice        float64 `json:"buy_price"`
+	SellPrice       float64 `json:"sell_price"`
+	Product         string  `json:"product"`
+	Status          string  `json:"status"`
+	Message         string  `json:"message"`
+}
+
+func (q *Queries) CreateStrategyPosition(ctx context.Context, arg CreateStrategyPositionParams) (int64, error) {
+	row := q.db.QueryRowContext(ctx, createStrategyPosition,
+		arg.StrategyID,
+		arg.Tradingsymbol,
+		arg.StrategyType,
+		arg.Exchange,
+		arg.InstrumentToken,
+		arg.Quantity,
+		arg.LastPrice,
+		arg.BuyQuantity,
+		arg.Multiplier,
+		arg.SellQuantity,
+		arg.Side,
+		arg.BuyPrice,
+		arg.SellPrice,
+		arg.Product,
+		arg.Status,
+		arg.Message,
+	)
+	var id int64
+	err := row.Scan(&id)
+	return id, err
+}
+
+const createStrategyType = `-- name: CreateStrategyType :one
+INSERT INTO strategy_types (name, rules_explanation) VALUES (?, ?) RETURNING id
+`
+
+type CreateStrategyTypeParams struct {
+	Name             string `json:"name"`
+	RulesExplanation string `json:"rules_explanation"`
+}
+
+func (q *Queries) CreateStrategyType(ctx context.Context, arg CreateStrategyTypeParams) (int64, error) {
+	row := q.db.QueryRowContext(ctx, createStrategyType, arg.Name, arg.RulesExplanation)
+	var id int64
+	err := row.Scan(&id)
+	return id, err
+}
+
 const createWatchlist = `-- name: CreateWatchlist :one
 INSERT INTO watchlists (name, sort_order) VALUES (?, ?) RETURNING id
 `
@@ -174,6 +447,42 @@ func (q *Queries) DeleteBroker(ctx context.Context, id int64) error {
 	return err
 }
 
+const deleteStrategy = `-- name: DeleteStrategy :exec
+DELETE FROM strategies WHERE id=?
+`
+
+func (q *Queries) DeleteStrategy(ctx context.Context, id int64) error {
+	_, err := q.db.ExecContext(ctx, deleteStrategy, id)
+	return err
+}
+
+const deleteStrategyInfo = `-- name: DeleteStrategyInfo :exec
+DELETE FROM strategy_info WHERE id=?
+`
+
+func (q *Queries) DeleteStrategyInfo(ctx context.Context, id int64) error {
+	_, err := q.db.ExecContext(ctx, deleteStrategyInfo, id)
+	return err
+}
+
+const deleteStrategyJoiner = `-- name: DeleteStrategyJoiner :exec
+DELETE FROM strategy_joiners WHERE id=?
+`
+
+func (q *Queries) DeleteStrategyJoiner(ctx context.Context, id int64) error {
+	_, err := q.db.ExecContext(ctx, deleteStrategyJoiner, id)
+	return err
+}
+
+const deleteStrategyType = `-- name: DeleteStrategyType :exec
+DELETE FROM strategy_types WHERE id=?
+`
+
+func (q *Queries) DeleteStrategyType(ctx context.Context, id int64) error {
+	_, err := q.db.ExecContext(ctx, deleteStrategyType, id)
+	return err
+}
+
 const deleteWatchlist = `-- name: DeleteWatchlist :exec
 DELETE FROM watchlists WHERE id=?
 `
@@ -181,6 +490,51 @@ DELETE FROM watchlists WHERE id=?
 func (q *Queries) DeleteWatchlist(ctx context.Context, id int64) error {
 	_, err := q.db.ExecContext(ctx, deleteWatchlist, id)
 	return err
+}
+
+const getActiveStrategies = `-- name: GetActiveStrategies :many
+SELECT id, name, strategy_secret_key, strategy_type, position_status, instrument_token, exchange, side, atm_otm, image_url, color, is_active, is_locked, message, expiry_date, created_at, updated_at FROM strategies WHERE is_active=1 ORDER BY name
+`
+
+func (q *Queries) GetActiveStrategies(ctx context.Context) ([]Strategy, error) {
+	rows, err := q.db.QueryContext(ctx, getActiveStrategies)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []Strategy
+	for rows.Next() {
+		var i Strategy
+		if err := rows.Scan(
+			&i.ID,
+			&i.Name,
+			&i.StrategySecretKey,
+			&i.StrategyType,
+			&i.PositionStatus,
+			&i.InstrumentToken,
+			&i.Exchange,
+			&i.Side,
+			&i.AtmOtm,
+			&i.ImageUrl,
+			&i.Color,
+			&i.IsActive,
+			&i.IsLocked,
+			&i.Message,
+			&i.ExpiryDate,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
 }
 
 const getBroker = `-- name: GetBroker :one
@@ -280,6 +634,33 @@ func (q *Queries) GetBrokerListCount(ctx context.Context) (int64, error) {
 	return count, err
 }
 
+const getBrokerStrategyJoiner = `-- name: GetBrokerStrategyJoiner :one
+SELECT id, broker_id, strategy_id, quantity, re_entry, re_entry_triggered, multiplier, is_active, created_at, updated_at FROM strategy_joiners WHERE broker_id=? AND strategy_id=?
+`
+
+type GetBrokerStrategyJoinerParams struct {
+	BrokerID   int64 `json:"broker_id"`
+	StrategyID int64 `json:"strategy_id"`
+}
+
+func (q *Queries) GetBrokerStrategyJoiner(ctx context.Context, arg GetBrokerStrategyJoinerParams) (StrategyJoiner, error) {
+	row := q.db.QueryRowContext(ctx, getBrokerStrategyJoiner, arg.BrokerID, arg.StrategyID)
+	var i StrategyJoiner
+	err := row.Scan(
+		&i.ID,
+		&i.BrokerID,
+		&i.StrategyID,
+		&i.Quantity,
+		&i.ReEntry,
+		&i.ReEntryTriggered,
+		&i.Multiplier,
+		&i.IsActive,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
+}
+
 const getBrokerToken = `-- name: GetBrokerToken :one
 SELECT broker_token, broker_name, broker_api FROM brokers WHERE id=?
 `
@@ -308,6 +689,152 @@ func (q *Queries) GetMasterContractCount(ctx context.Context) (int64, error) {
 	return count, err
 }
 
+const getOrder = `-- name: GetOrder :one
+SELECT id, broker_id, strategy_id, position_id, order_id, status_message, tag, variety, tradingsymbol, exchange, instrument_token, broker_instrument_token, transaction_type, product, order_type, validity, status, quantity, price, trigger_price, average_price, filled_quantity, pending_quantity, cancelled_quantity, created_at, updated_at FROM orders WHERE id=?
+`
+
+func (q *Queries) GetOrder(ctx context.Context, id int64) (Order, error) {
+	row := q.db.QueryRowContext(ctx, getOrder, id)
+	var i Order
+	err := row.Scan(
+		&i.ID,
+		&i.BrokerID,
+		&i.StrategyID,
+		&i.PositionID,
+		&i.OrderID,
+		&i.StatusMessage,
+		&i.Tag,
+		&i.Variety,
+		&i.Tradingsymbol,
+		&i.Exchange,
+		&i.InstrumentToken,
+		&i.BrokerInstrumentToken,
+		&i.TransactionType,
+		&i.Product,
+		&i.OrderType,
+		&i.Validity,
+		&i.Status,
+		&i.Quantity,
+		&i.Price,
+		&i.TriggerPrice,
+		&i.AveragePrice,
+		&i.FilledQuantity,
+		&i.PendingQuantity,
+		&i.CancelledQuantity,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
+}
+
+const getOrderByOrderId = `-- name: GetOrderByOrderId :one
+SELECT id, broker_id, strategy_id, position_id, order_id, status_message, tag, variety, tradingsymbol, exchange, instrument_token, broker_instrument_token, transaction_type, product, order_type, validity, status, quantity, price, trigger_price, average_price, filled_quantity, pending_quantity, cancelled_quantity, created_at, updated_at FROM orders WHERE order_id=?
+`
+
+func (q *Queries) GetOrderByOrderId(ctx context.Context, orderID string) (Order, error) {
+	row := q.db.QueryRowContext(ctx, getOrderByOrderId, orderID)
+	var i Order
+	err := row.Scan(
+		&i.ID,
+		&i.BrokerID,
+		&i.StrategyID,
+		&i.PositionID,
+		&i.OrderID,
+		&i.StatusMessage,
+		&i.Tag,
+		&i.Variety,
+		&i.Tradingsymbol,
+		&i.Exchange,
+		&i.InstrumentToken,
+		&i.BrokerInstrumentToken,
+		&i.TransactionType,
+		&i.Product,
+		&i.OrderType,
+		&i.Validity,
+		&i.Status,
+		&i.Quantity,
+		&i.Price,
+		&i.TriggerPrice,
+		&i.AveragePrice,
+		&i.FilledQuantity,
+		&i.PendingQuantity,
+		&i.CancelledQuantity,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
+}
+
+const getPosition = `-- name: GetPosition :one
+SELECT id, broker_id, strategy_id, entry_order_id, exit_order_id, tradingsymbol, strategy_type, exchange, instrument_token, broker_instrument_token, quantity, last_price, buy_quantity, sell_quantity, multiplier, side, buy_price, sell_price, product, status, message, created_at, updated_at FROM positions WHERE id=?
+`
+
+func (q *Queries) GetPosition(ctx context.Context, id int64) (Position, error) {
+	row := q.db.QueryRowContext(ctx, getPosition, id)
+	var i Position
+	err := row.Scan(
+		&i.ID,
+		&i.BrokerID,
+		&i.StrategyID,
+		&i.EntryOrderID,
+		&i.ExitOrderID,
+		&i.Tradingsymbol,
+		&i.StrategyType,
+		&i.Exchange,
+		&i.InstrumentToken,
+		&i.BrokerInstrumentToken,
+		&i.Quantity,
+		&i.LastPrice,
+		&i.BuyQuantity,
+		&i.SellQuantity,
+		&i.Multiplier,
+		&i.Side,
+		&i.BuyPrice,
+		&i.SellPrice,
+		&i.Product,
+		&i.Status,
+		&i.Message,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
+}
+
+const getPositionByEntryOrder = `-- name: GetPositionByEntryOrder :one
+SELECT id, broker_id, strategy_id, entry_order_id, exit_order_id, tradingsymbol, strategy_type, exchange, instrument_token, broker_instrument_token, quantity, last_price, buy_quantity, sell_quantity, multiplier, side, buy_price, sell_price, product, status, message, created_at, updated_at FROM positions WHERE entry_order_id=?
+`
+
+func (q *Queries) GetPositionByEntryOrder(ctx context.Context, entryOrderID sql.NullInt64) (Position, error) {
+	row := q.db.QueryRowContext(ctx, getPositionByEntryOrder, entryOrderID)
+	var i Position
+	err := row.Scan(
+		&i.ID,
+		&i.BrokerID,
+		&i.StrategyID,
+		&i.EntryOrderID,
+		&i.ExitOrderID,
+		&i.Tradingsymbol,
+		&i.StrategyType,
+		&i.Exchange,
+		&i.InstrumentToken,
+		&i.BrokerInstrumentToken,
+		&i.Quantity,
+		&i.LastPrice,
+		&i.BuyQuantity,
+		&i.SellQuantity,
+		&i.Multiplier,
+		&i.Side,
+		&i.BuyPrice,
+		&i.SellPrice,
+		&i.Product,
+		&i.Status,
+		&i.Message,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
+}
+
 const getSetting = `-- name: GetSetting :one
 SELECT value FROM system_settings WHERE key=?
 `
@@ -317,6 +844,122 @@ func (q *Queries) GetSetting(ctx context.Context, key string) (string, error) {
 	var value string
 	err := row.Scan(&value)
 	return value, err
+}
+
+const getStrategy = `-- name: GetStrategy :one
+SELECT id, name, strategy_secret_key, strategy_type, position_status, instrument_token, exchange, side, atm_otm, image_url, color, is_active, is_locked, message, expiry_date, created_at, updated_at FROM strategies WHERE id=?
+`
+
+func (q *Queries) GetStrategy(ctx context.Context, id int64) (Strategy, error) {
+	row := q.db.QueryRowContext(ctx, getStrategy, id)
+	var i Strategy
+	err := row.Scan(
+		&i.ID,
+		&i.Name,
+		&i.StrategySecretKey,
+		&i.StrategyType,
+		&i.PositionStatus,
+		&i.InstrumentToken,
+		&i.Exchange,
+		&i.Side,
+		&i.AtmOtm,
+		&i.ImageUrl,
+		&i.Color,
+		&i.IsActive,
+		&i.IsLocked,
+		&i.Message,
+		&i.ExpiryDate,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
+}
+
+const getStrategyInfo = `-- name: GetStrategyInfo :one
+SELECT id, strategy_id, info, created_at, updated_at FROM strategy_info WHERE id=?
+`
+
+func (q *Queries) GetStrategyInfo(ctx context.Context, id int64) (StrategyInfo, error) {
+	row := q.db.QueryRowContext(ctx, getStrategyInfo, id)
+	var i StrategyInfo
+	err := row.Scan(
+		&i.ID,
+		&i.StrategyID,
+		&i.Info,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
+}
+
+const getStrategyJoiner = `-- name: GetStrategyJoiner :one
+SELECT id, broker_id, strategy_id, quantity, re_entry, re_entry_triggered, multiplier, is_active, created_at, updated_at FROM strategy_joiners WHERE id=?
+`
+
+func (q *Queries) GetStrategyJoiner(ctx context.Context, id int64) (StrategyJoiner, error) {
+	row := q.db.QueryRowContext(ctx, getStrategyJoiner, id)
+	var i StrategyJoiner
+	err := row.Scan(
+		&i.ID,
+		&i.BrokerID,
+		&i.StrategyID,
+		&i.Quantity,
+		&i.ReEntry,
+		&i.ReEntryTriggered,
+		&i.Multiplier,
+		&i.IsActive,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
+}
+
+const getStrategyPosition = `-- name: GetStrategyPosition :one
+SELECT id, strategy_id, tradingsymbol, strategy_type, exchange, instrument_token, quantity, last_price, buy_quantity, multiplier, sell_quantity, side, buy_price, sell_price, product, status, message, created_at, updated_at FROM strategy_positions WHERE id=?
+`
+
+func (q *Queries) GetStrategyPosition(ctx context.Context, id int64) (StrategyPosition, error) {
+	row := q.db.QueryRowContext(ctx, getStrategyPosition, id)
+	var i StrategyPosition
+	err := row.Scan(
+		&i.ID,
+		&i.StrategyID,
+		&i.Tradingsymbol,
+		&i.StrategyType,
+		&i.Exchange,
+		&i.InstrumentToken,
+		&i.Quantity,
+		&i.LastPrice,
+		&i.BuyQuantity,
+		&i.Multiplier,
+		&i.SellQuantity,
+		&i.Side,
+		&i.BuyPrice,
+		&i.SellPrice,
+		&i.Product,
+		&i.Status,
+		&i.Message,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
+}
+
+const getStrategyType = `-- name: GetStrategyType :one
+SELECT id, name, rules_explanation, created_at, updated_at FROM strategy_types WHERE id=?
+`
+
+func (q *Queries) GetStrategyType(ctx context.Context, id int64) (StrategyType, error) {
+	row := q.db.QueryRowContext(ctx, getStrategyType, id)
+	var i StrategyType
+	err := row.Scan(
+		&i.ID,
+		&i.Name,
+		&i.RulesExplanation,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
 }
 
 const insertBrokerListEntry = `-- name: InsertBrokerListEntry :exec
@@ -332,6 +975,46 @@ type InsertBrokerListEntryParams struct {
 func (q *Queries) InsertBrokerListEntry(ctx context.Context, arg InsertBrokerListEntryParams) error {
 	_, err := q.db.ExecContext(ctx, insertBrokerListEntry, arg.Name, arg.BrokerImageUrl, arg.IsActive)
 	return err
+}
+
+const listActiveStrategyJoiners = `-- name: ListActiveStrategyJoiners :many
+SELECT sj.id, sj.broker_id, sj.strategy_id, sj.quantity, sj.re_entry, sj.re_entry_triggered, sj.multiplier, sj.is_active, sj.created_at, sj.updated_at FROM strategy_joiners sj
+JOIN strategies s ON s.id=sj.strategy_id
+WHERE sj.is_active=1 AND s.is_active=1
+`
+
+func (q *Queries) ListActiveStrategyJoiners(ctx context.Context) ([]StrategyJoiner, error) {
+	rows, err := q.db.QueryContext(ctx, listActiveStrategyJoiners)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []StrategyJoiner
+	for rows.Next() {
+		var i StrategyJoiner
+		if err := rows.Scan(
+			&i.ID,
+			&i.BrokerID,
+			&i.StrategyID,
+			&i.Quantity,
+			&i.ReEntry,
+			&i.ReEntryTriggered,
+			&i.Multiplier,
+			&i.IsActive,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
 }
 
 const listBrokerColumns = `-- name: ListBrokerColumns :many
@@ -433,6 +1116,549 @@ func (q *Queries) ListBrokers(ctx context.Context) ([]Broker, error) {
 			&i.IsAutologin,
 			&i.IsDisabled,
 			&i.Message,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listOrders = `-- name: ListOrders :many
+SELECT id, broker_id, strategy_id, position_id, order_id, status_message, tag, variety, tradingsymbol, exchange, instrument_token, broker_instrument_token, transaction_type, product, order_type, validity, status, quantity, price, trigger_price, average_price, filled_quantity, pending_quantity, cancelled_quantity, created_at, updated_at FROM orders ORDER BY created_at DESC
+`
+
+func (q *Queries) ListOrders(ctx context.Context) ([]Order, error) {
+	rows, err := q.db.QueryContext(ctx, listOrders)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []Order
+	for rows.Next() {
+		var i Order
+		if err := rows.Scan(
+			&i.ID,
+			&i.BrokerID,
+			&i.StrategyID,
+			&i.PositionID,
+			&i.OrderID,
+			&i.StatusMessage,
+			&i.Tag,
+			&i.Variety,
+			&i.Tradingsymbol,
+			&i.Exchange,
+			&i.InstrumentToken,
+			&i.BrokerInstrumentToken,
+			&i.TransactionType,
+			&i.Product,
+			&i.OrderType,
+			&i.Validity,
+			&i.Status,
+			&i.Quantity,
+			&i.Price,
+			&i.TriggerPrice,
+			&i.AveragePrice,
+			&i.FilledQuantity,
+			&i.PendingQuantity,
+			&i.CancelledQuantity,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listOrdersByBroker = `-- name: ListOrdersByBroker :many
+SELECT id, broker_id, strategy_id, position_id, order_id, status_message, tag, variety, tradingsymbol, exchange, instrument_token, broker_instrument_token, transaction_type, product, order_type, validity, status, quantity, price, trigger_price, average_price, filled_quantity, pending_quantity, cancelled_quantity, created_at, updated_at FROM orders WHERE broker_id=? ORDER BY created_at DESC
+`
+
+func (q *Queries) ListOrdersByBroker(ctx context.Context, brokerID int64) ([]Order, error) {
+	rows, err := q.db.QueryContext(ctx, listOrdersByBroker, brokerID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []Order
+	for rows.Next() {
+		var i Order
+		if err := rows.Scan(
+			&i.ID,
+			&i.BrokerID,
+			&i.StrategyID,
+			&i.PositionID,
+			&i.OrderID,
+			&i.StatusMessage,
+			&i.Tag,
+			&i.Variety,
+			&i.Tradingsymbol,
+			&i.Exchange,
+			&i.InstrumentToken,
+			&i.BrokerInstrumentToken,
+			&i.TransactionType,
+			&i.Product,
+			&i.OrderType,
+			&i.Validity,
+			&i.Status,
+			&i.Quantity,
+			&i.Price,
+			&i.TriggerPrice,
+			&i.AveragePrice,
+			&i.FilledQuantity,
+			&i.PendingQuantity,
+			&i.CancelledQuantity,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listOrdersByStrategy = `-- name: ListOrdersByStrategy :many
+SELECT id, broker_id, strategy_id, position_id, order_id, status_message, tag, variety, tradingsymbol, exchange, instrument_token, broker_instrument_token, transaction_type, product, order_type, validity, status, quantity, price, trigger_price, average_price, filled_quantity, pending_quantity, cancelled_quantity, created_at, updated_at FROM orders WHERE strategy_id=? ORDER BY created_at DESC
+`
+
+func (q *Queries) ListOrdersByStrategy(ctx context.Context, strategyID sql.NullInt64) ([]Order, error) {
+	rows, err := q.db.QueryContext(ctx, listOrdersByStrategy, strategyID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []Order
+	for rows.Next() {
+		var i Order
+		if err := rows.Scan(
+			&i.ID,
+			&i.BrokerID,
+			&i.StrategyID,
+			&i.PositionID,
+			&i.OrderID,
+			&i.StatusMessage,
+			&i.Tag,
+			&i.Variety,
+			&i.Tradingsymbol,
+			&i.Exchange,
+			&i.InstrumentToken,
+			&i.BrokerInstrumentToken,
+			&i.TransactionType,
+			&i.Product,
+			&i.OrderType,
+			&i.Validity,
+			&i.Status,
+			&i.Quantity,
+			&i.Price,
+			&i.TriggerPrice,
+			&i.AveragePrice,
+			&i.FilledQuantity,
+			&i.PendingQuantity,
+			&i.CancelledQuantity,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listPositions = `-- name: ListPositions :many
+SELECT id, broker_id, strategy_id, entry_order_id, exit_order_id, tradingsymbol, strategy_type, exchange, instrument_token, broker_instrument_token, quantity, last_price, buy_quantity, sell_quantity, multiplier, side, buy_price, sell_price, product, status, message, created_at, updated_at FROM positions ORDER BY created_at DESC
+`
+
+func (q *Queries) ListPositions(ctx context.Context) ([]Position, error) {
+	rows, err := q.db.QueryContext(ctx, listPositions)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []Position
+	for rows.Next() {
+		var i Position
+		if err := rows.Scan(
+			&i.ID,
+			&i.BrokerID,
+			&i.StrategyID,
+			&i.EntryOrderID,
+			&i.ExitOrderID,
+			&i.Tradingsymbol,
+			&i.StrategyType,
+			&i.Exchange,
+			&i.InstrumentToken,
+			&i.BrokerInstrumentToken,
+			&i.Quantity,
+			&i.LastPrice,
+			&i.BuyQuantity,
+			&i.SellQuantity,
+			&i.Multiplier,
+			&i.Side,
+			&i.BuyPrice,
+			&i.SellPrice,
+			&i.Product,
+			&i.Status,
+			&i.Message,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listPositionsByBroker = `-- name: ListPositionsByBroker :many
+SELECT id, broker_id, strategy_id, entry_order_id, exit_order_id, tradingsymbol, strategy_type, exchange, instrument_token, broker_instrument_token, quantity, last_price, buy_quantity, sell_quantity, multiplier, side, buy_price, sell_price, product, status, message, created_at, updated_at FROM positions WHERE broker_id=? ORDER BY created_at DESC
+`
+
+func (q *Queries) ListPositionsByBroker(ctx context.Context, brokerID int64) ([]Position, error) {
+	rows, err := q.db.QueryContext(ctx, listPositionsByBroker, brokerID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []Position
+	for rows.Next() {
+		var i Position
+		if err := rows.Scan(
+			&i.ID,
+			&i.BrokerID,
+			&i.StrategyID,
+			&i.EntryOrderID,
+			&i.ExitOrderID,
+			&i.Tradingsymbol,
+			&i.StrategyType,
+			&i.Exchange,
+			&i.InstrumentToken,
+			&i.BrokerInstrumentToken,
+			&i.Quantity,
+			&i.LastPrice,
+			&i.BuyQuantity,
+			&i.SellQuantity,
+			&i.Multiplier,
+			&i.Side,
+			&i.BuyPrice,
+			&i.SellPrice,
+			&i.Product,
+			&i.Status,
+			&i.Message,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listPositionsByStrategy = `-- name: ListPositionsByStrategy :many
+SELECT id, broker_id, strategy_id, entry_order_id, exit_order_id, tradingsymbol, strategy_type, exchange, instrument_token, broker_instrument_token, quantity, last_price, buy_quantity, sell_quantity, multiplier, side, buy_price, sell_price, product, status, message, created_at, updated_at FROM positions WHERE strategy_id=? ORDER BY created_at DESC
+`
+
+func (q *Queries) ListPositionsByStrategy(ctx context.Context, strategyID sql.NullInt64) ([]Position, error) {
+	rows, err := q.db.QueryContext(ctx, listPositionsByStrategy, strategyID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []Position
+	for rows.Next() {
+		var i Position
+		if err := rows.Scan(
+			&i.ID,
+			&i.BrokerID,
+			&i.StrategyID,
+			&i.EntryOrderID,
+			&i.ExitOrderID,
+			&i.Tradingsymbol,
+			&i.StrategyType,
+			&i.Exchange,
+			&i.InstrumentToken,
+			&i.BrokerInstrumentToken,
+			&i.Quantity,
+			&i.LastPrice,
+			&i.BuyQuantity,
+			&i.SellQuantity,
+			&i.Multiplier,
+			&i.Side,
+			&i.BuyPrice,
+			&i.SellPrice,
+			&i.Product,
+			&i.Status,
+			&i.Message,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listSettings = `-- name: ListSettings :many
+SELECT key, value FROM system_settings ORDER BY key
+`
+
+type ListSettingsRow struct {
+	Key   string `json:"key"`
+	Value string `json:"value"`
+}
+
+func (q *Queries) ListSettings(ctx context.Context) ([]ListSettingsRow, error) {
+	rows, err := q.db.QueryContext(ctx, listSettings)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []ListSettingsRow
+	for rows.Next() {
+		var i ListSettingsRow
+		if err := rows.Scan(&i.Key, &i.Value); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listStrategies = `-- name: ListStrategies :many
+SELECT id, name, strategy_secret_key, strategy_type, position_status, instrument_token, exchange, side, atm_otm, image_url, color, is_active, is_locked, message, expiry_date, created_at, updated_at FROM strategies ORDER BY name
+`
+
+func (q *Queries) ListStrategies(ctx context.Context) ([]Strategy, error) {
+	rows, err := q.db.QueryContext(ctx, listStrategies)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []Strategy
+	for rows.Next() {
+		var i Strategy
+		if err := rows.Scan(
+			&i.ID,
+			&i.Name,
+			&i.StrategySecretKey,
+			&i.StrategyType,
+			&i.PositionStatus,
+			&i.InstrumentToken,
+			&i.Exchange,
+			&i.Side,
+			&i.AtmOtm,
+			&i.ImageUrl,
+			&i.Color,
+			&i.IsActive,
+			&i.IsLocked,
+			&i.Message,
+			&i.ExpiryDate,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listStrategyInfo = `-- name: ListStrategyInfo :many
+SELECT id, strategy_id, info, created_at, updated_at FROM strategy_info WHERE strategy_id=? ORDER BY created_at
+`
+
+func (q *Queries) ListStrategyInfo(ctx context.Context, strategyID int64) ([]StrategyInfo, error) {
+	rows, err := q.db.QueryContext(ctx, listStrategyInfo, strategyID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []StrategyInfo
+	for rows.Next() {
+		var i StrategyInfo
+		if err := rows.Scan(
+			&i.ID,
+			&i.StrategyID,
+			&i.Info,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listStrategyJoiners = `-- name: ListStrategyJoiners :many
+SELECT id, broker_id, strategy_id, quantity, re_entry, re_entry_triggered, multiplier, is_active, created_at, updated_at FROM strategy_joiners WHERE strategy_id=? ORDER BY id
+`
+
+func (q *Queries) ListStrategyJoiners(ctx context.Context, strategyID int64) ([]StrategyJoiner, error) {
+	rows, err := q.db.QueryContext(ctx, listStrategyJoiners, strategyID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []StrategyJoiner
+	for rows.Next() {
+		var i StrategyJoiner
+		if err := rows.Scan(
+			&i.ID,
+			&i.BrokerID,
+			&i.StrategyID,
+			&i.Quantity,
+			&i.ReEntry,
+			&i.ReEntryTriggered,
+			&i.Multiplier,
+			&i.IsActive,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listStrategyPositions = `-- name: ListStrategyPositions :many
+SELECT id, strategy_id, tradingsymbol, strategy_type, exchange, instrument_token, quantity, last_price, buy_quantity, multiplier, sell_quantity, side, buy_price, sell_price, product, status, message, created_at, updated_at FROM strategy_positions WHERE strategy_id=? ORDER BY id
+`
+
+func (q *Queries) ListStrategyPositions(ctx context.Context, strategyID int64) ([]StrategyPosition, error) {
+	rows, err := q.db.QueryContext(ctx, listStrategyPositions, strategyID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []StrategyPosition
+	for rows.Next() {
+		var i StrategyPosition
+		if err := rows.Scan(
+			&i.ID,
+			&i.StrategyID,
+			&i.Tradingsymbol,
+			&i.StrategyType,
+			&i.Exchange,
+			&i.InstrumentToken,
+			&i.Quantity,
+			&i.LastPrice,
+			&i.BuyQuantity,
+			&i.Multiplier,
+			&i.SellQuantity,
+			&i.Side,
+			&i.BuyPrice,
+			&i.SellPrice,
+			&i.Product,
+			&i.Status,
+			&i.Message,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listStrategyTypes = `-- name: ListStrategyTypes :many
+SELECT id, name, rules_explanation, created_at, updated_at FROM strategy_types ORDER BY name
+`
+
+func (q *Queries) ListStrategyTypes(ctx context.Context) ([]StrategyType, error) {
+	rows, err := q.db.QueryContext(ctx, listStrategyTypes)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []StrategyType
+	for rows.Next() {
+		var i StrategyType
+		if err := rows.Scan(
+			&i.ID,
+			&i.Name,
+			&i.RulesExplanation,
 			&i.CreatedAt,
 			&i.UpdatedAt,
 		); err != nil {
@@ -663,6 +1889,269 @@ func (q *Queries) UpdateBroker(ctx context.Context, arg UpdateBrokerParams) erro
 		arg.Message,
 		arg.ID,
 	)
+	return err
+}
+
+const updateOrder = `-- name: UpdateOrder :exec
+UPDATE orders SET
+    strategy_id=?, position_id=?, status_message=?, tag=?, status=?, quantity=?, price=?,
+    trigger_price=?, average_price=?, filled_quantity=?, pending_quantity=?, cancelled_quantity=?,
+    updated_at=datetime('now','localtime')
+WHERE id=?
+`
+
+type UpdateOrderParams struct {
+	StrategyID        sql.NullInt64 `json:"strategy_id"`
+	PositionID        sql.NullInt64 `json:"position_id"`
+	StatusMessage     string        `json:"status_message"`
+	Tag               string        `json:"tag"`
+	Status            string        `json:"status"`
+	Quantity          float64       `json:"quantity"`
+	Price             float64       `json:"price"`
+	TriggerPrice      float64       `json:"trigger_price"`
+	AveragePrice      float64       `json:"average_price"`
+	FilledQuantity    float64       `json:"filled_quantity"`
+	PendingQuantity   float64       `json:"pending_quantity"`
+	CancelledQuantity float64       `json:"cancelled_quantity"`
+	ID                int64         `json:"id"`
+}
+
+func (q *Queries) UpdateOrder(ctx context.Context, arg UpdateOrderParams) error {
+	_, err := q.db.ExecContext(ctx, updateOrder,
+		arg.StrategyID,
+		arg.PositionID,
+		arg.StatusMessage,
+		arg.Tag,
+		arg.Status,
+		arg.Quantity,
+		arg.Price,
+		arg.TriggerPrice,
+		arg.AveragePrice,
+		arg.FilledQuantity,
+		arg.PendingQuantity,
+		arg.CancelledQuantity,
+		arg.ID,
+	)
+	return err
+}
+
+const updateOrderStatus = `-- name: UpdateOrderStatus :exec
+UPDATE orders SET
+    status=?, status_message=?, average_price=?, filled_quantity=?, pending_quantity=?, cancelled_quantity=?,
+    updated_at=datetime('now','localtime')
+WHERE id=?
+`
+
+type UpdateOrderStatusParams struct {
+	Status            string  `json:"status"`
+	StatusMessage     string  `json:"status_message"`
+	AveragePrice      float64 `json:"average_price"`
+	FilledQuantity    float64 `json:"filled_quantity"`
+	PendingQuantity   float64 `json:"pending_quantity"`
+	CancelledQuantity float64 `json:"cancelled_quantity"`
+	ID                int64   `json:"id"`
+}
+
+func (q *Queries) UpdateOrderStatus(ctx context.Context, arg UpdateOrderStatusParams) error {
+	_, err := q.db.ExecContext(ctx, updateOrderStatus,
+		arg.Status,
+		arg.StatusMessage,
+		arg.AveragePrice,
+		arg.FilledQuantity,
+		arg.PendingQuantity,
+		arg.CancelledQuantity,
+		arg.ID,
+	)
+	return err
+}
+
+const updatePosition = `-- name: UpdatePosition :exec
+UPDATE positions SET
+    entry_order_id=?, exit_order_id=?, quantity=?, last_price=?, buy_quantity=?, sell_quantity=?,
+    multiplier=?, side=?, buy_price=?, sell_price=?, product=?, status=?, message=?,
+    updated_at=datetime('now','localtime')
+WHERE id=?
+`
+
+type UpdatePositionParams struct {
+	EntryOrderID sql.NullInt64 `json:"entry_order_id"`
+	ExitOrderID  sql.NullInt64 `json:"exit_order_id"`
+	Quantity     float64       `json:"quantity"`
+	LastPrice    float64       `json:"last_price"`
+	BuyQuantity  float64       `json:"buy_quantity"`
+	SellQuantity float64       `json:"sell_quantity"`
+	Multiplier   float64       `json:"multiplier"`
+	Side         string        `json:"side"`
+	BuyPrice     float64       `json:"buy_price"`
+	SellPrice    float64       `json:"sell_price"`
+	Product      string        `json:"product"`
+	Status       string        `json:"status"`
+	Message      string        `json:"message"`
+	ID           int64         `json:"id"`
+}
+
+func (q *Queries) UpdatePosition(ctx context.Context, arg UpdatePositionParams) error {
+	_, err := q.db.ExecContext(ctx, updatePosition,
+		arg.EntryOrderID,
+		arg.ExitOrderID,
+		arg.Quantity,
+		arg.LastPrice,
+		arg.BuyQuantity,
+		arg.SellQuantity,
+		arg.Multiplier,
+		arg.Side,
+		arg.BuyPrice,
+		arg.SellPrice,
+		arg.Product,
+		arg.Status,
+		arg.Message,
+		arg.ID,
+	)
+	return err
+}
+
+const updateStrategy = `-- name: UpdateStrategy :exec
+UPDATE strategies SET
+    name=?, strategy_secret_key=?, strategy_type=?, position_status=?, instrument_token=?,
+    exchange=?, side=?, atm_otm=?, image_url=?, color=?, is_active=?, is_locked=?, message=?,
+    expiry_date=?, updated_at=datetime('now','localtime')
+WHERE id=?
+`
+
+type UpdateStrategyParams struct {
+	Name              string  `json:"name"`
+	StrategySecretKey string  `json:"strategy_secret_key"`
+	StrategyType      int64   `json:"strategy_type"`
+	PositionStatus    int64   `json:"position_status"`
+	InstrumentToken   int64   `json:"instrument_token"`
+	Exchange          string  `json:"exchange"`
+	Side              string  `json:"side"`
+	AtmOtm            float64 `json:"atm_otm"`
+	ImageUrl          string  `json:"image_url"`
+	Color             string  `json:"color"`
+	IsActive          int64   `json:"is_active"`
+	IsLocked          int64   `json:"is_locked"`
+	Message           string  `json:"message"`
+	ExpiryDate        string  `json:"expiry_date"`
+	ID                int64   `json:"id"`
+}
+
+func (q *Queries) UpdateStrategy(ctx context.Context, arg UpdateStrategyParams) error {
+	_, err := q.db.ExecContext(ctx, updateStrategy,
+		arg.Name,
+		arg.StrategySecretKey,
+		arg.StrategyType,
+		arg.PositionStatus,
+		arg.InstrumentToken,
+		arg.Exchange,
+		arg.Side,
+		arg.AtmOtm,
+		arg.ImageUrl,
+		arg.Color,
+		arg.IsActive,
+		arg.IsLocked,
+		arg.Message,
+		arg.ExpiryDate,
+		arg.ID,
+	)
+	return err
+}
+
+const updateStrategyInfo = `-- name: UpdateStrategyInfo :exec
+UPDATE strategy_info SET info=?, updated_at=datetime('now','localtime') WHERE id=?
+`
+
+type UpdateStrategyInfoParams struct {
+	Info string `json:"info"`
+	ID   int64  `json:"id"`
+}
+
+func (q *Queries) UpdateStrategyInfo(ctx context.Context, arg UpdateStrategyInfoParams) error {
+	_, err := q.db.ExecContext(ctx, updateStrategyInfo, arg.Info, arg.ID)
+	return err
+}
+
+const updateStrategyJoiner = `-- name: UpdateStrategyJoiner :exec
+UPDATE strategy_joiners SET
+    quantity=?, re_entry=?, re_entry_triggered=?, multiplier=?, is_active=?,
+    updated_at=datetime('now','localtime')
+WHERE id=?
+`
+
+type UpdateStrategyJoinerParams struct {
+	Quantity         float64 `json:"quantity"`
+	ReEntry          int64   `json:"re_entry"`
+	ReEntryTriggered int64   `json:"re_entry_triggered"`
+	Multiplier       float64 `json:"multiplier"`
+	IsActive         int64   `json:"is_active"`
+	ID               int64   `json:"id"`
+}
+
+func (q *Queries) UpdateStrategyJoiner(ctx context.Context, arg UpdateStrategyJoinerParams) error {
+	_, err := q.db.ExecContext(ctx, updateStrategyJoiner,
+		arg.Quantity,
+		arg.ReEntry,
+		arg.ReEntryTriggered,
+		arg.Multiplier,
+		arg.IsActive,
+		arg.ID,
+	)
+	return err
+}
+
+const updateStrategyPosition = `-- name: UpdateStrategyPosition :exec
+UPDATE strategy_positions SET
+    quantity=?, last_price=?, buy_quantity=?, multiplier=?, sell_quantity=?, side=?,
+    buy_price=?, sell_price=?, product=?, status=?, message=?,
+    updated_at=datetime('now','localtime')
+WHERE id=?
+`
+
+type UpdateStrategyPositionParams struct {
+	Quantity     float64 `json:"quantity"`
+	LastPrice    float64 `json:"last_price"`
+	BuyQuantity  float64 `json:"buy_quantity"`
+	Multiplier   float64 `json:"multiplier"`
+	SellQuantity float64 `json:"sell_quantity"`
+	Side         string  `json:"side"`
+	BuyPrice     float64 `json:"buy_price"`
+	SellPrice    float64 `json:"sell_price"`
+	Product      string  `json:"product"`
+	Status       string  `json:"status"`
+	Message      string  `json:"message"`
+	ID           int64   `json:"id"`
+}
+
+func (q *Queries) UpdateStrategyPosition(ctx context.Context, arg UpdateStrategyPositionParams) error {
+	_, err := q.db.ExecContext(ctx, updateStrategyPosition,
+		arg.Quantity,
+		arg.LastPrice,
+		arg.BuyQuantity,
+		arg.Multiplier,
+		arg.SellQuantity,
+		arg.Side,
+		arg.BuyPrice,
+		arg.SellPrice,
+		arg.Product,
+		arg.Status,
+		arg.Message,
+		arg.ID,
+	)
+	return err
+}
+
+const updateStrategyType = `-- name: UpdateStrategyType :exec
+UPDATE strategy_types SET name=?, rules_explanation=?, updated_at=datetime('now','localtime') WHERE id=?
+`
+
+type UpdateStrategyTypeParams struct {
+	Name             string `json:"name"`
+	RulesExplanation string `json:"rules_explanation"`
+	ID               int64  `json:"id"`
+}
+
+func (q *Queries) UpdateStrategyType(ctx context.Context, arg UpdateStrategyTypeParams) error {
+	_, err := q.db.ExecContext(ctx, updateStrategyType, arg.Name, arg.RulesExplanation, arg.ID)
 	return err
 }
 

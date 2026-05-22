@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"strconv"
 
+	"bhavyaaialgo/backend/brokers/aliceblue"
 	"bhavyaaialgo/backend/brokers/angel"
 )
 
@@ -22,20 +23,37 @@ func (a *App) RegisterBrokerDataRoutes(mux *http.ServeMux) {
 	mux.HandleFunc("POST /api/broker-place-order", a.authMiddleware(a.handleBrokerPlaceOrder))
 }
 
-func (a *App) brokerClient(id int64) (*angel.Client, string, string, error) {
-	var authToken, brokerName, brokerAPI string
+type brokerClientResult struct {
+	angelClient   *angel.Client
+	aliceClient   *aliceblue.Client
+	authToken     string
+	brokerName    string
+}
+
+func (a *App) brokerClient(id int64) (*brokerClientResult, error) {
+	var authToken, brokerName, brokerAPI, brokerAPISecret string
 	err := a.DB.QueryRow(
-		`SELECT broker_token, broker_name, broker_api FROM brokers WHERE id = ?`, id,
-	).Scan(&authToken, &brokerName, &brokerAPI)
+		`SELECT broker_token, broker_name, broker_api, broker_api_secret FROM brokers WHERE id = ?`, id,
+	).Scan(&authToken, &brokerName, &brokerAPI, &brokerAPISecret)
 	if err != nil {
-		return nil, "", "", err
+		return nil, err
 	}
 	if authToken == "" {
-		return nil, "", "", errNoToken
+		return nil, errNoToken
 	}
 	apiKey := getAPIKey(brokerAPI)
-	client := angel.NewClient(apiKey)
-	return client, authToken, brokerName, nil
+	apiSecret := getAPISecret(brokerAPISecret)
+	result := &brokerClientResult{
+		authToken:  authToken,
+		brokerName: brokerName,
+	}
+	switch brokerName {
+	case "angel":
+		result.angelClient = angel.NewClient(apiKey)
+	case "aliceblue":
+		result.aliceClient = aliceblue.NewClient(apiKey, apiSecret)
+	}
+	return result, nil
 }
 
 func (a *App) handleBrokerOrders(w http.ResponseWriter, r *http.Request) {
@@ -44,19 +62,26 @@ func (a *App) handleBrokerOrders(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "invalid id"})
 		return
 	}
-	client, token, name, err := a.brokerClient(id)
+	bc, err := a.brokerClient(id)
 	if err != nil {
 		writeJSON(w, http.StatusBadRequest, map[string]string{"error": err.Error()})
 		return
 	}
-	switch name {
+	switch bc.brokerName {
 	case "angel":
-		data, err := client.GetOrderBook(token)
+		data, err := bc.angelClient.GetOrderBook(bc.authToken)
 		if err != nil {
 			writeJSON(w, http.StatusBadGateway, map[string]string{"error": err.Error()})
 			return
 		}
 		writeJSON(w, http.StatusOK, data)
+	case "aliceblue":
+		data, err := bc.aliceClient.GetOrderBook(bc.authToken)
+		if err != nil {
+			writeJSON(w, http.StatusBadGateway, map[string]string{"error": err.Error()})
+			return
+		}
+		writeJSON(w, http.StatusOK, normalizeOrders(data))
 	default:
 		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "unsupported"})
 	}
@@ -68,14 +93,21 @@ func (a *App) handleBrokerPositions(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "invalid id"})
 		return
 	}
-	client, token, name, err := a.brokerClient(id)
+	bc, err := a.brokerClient(id)
 	if err != nil {
 		writeJSON(w, http.StatusBadRequest, map[string]string{"error": err.Error()})
 		return
 	}
-	switch name {
+	switch bc.brokerName {
 	case "angel":
-		data, err := client.GetPositions(token)
+		data, err := bc.angelClient.GetPositions(bc.authToken)
+		if err != nil {
+			writeJSON(w, http.StatusBadGateway, map[string]string{"error": err.Error()})
+			return
+		}
+		writeJSON(w, http.StatusOK, data)
+	case "aliceblue":
+		data, err := bc.aliceClient.GetPositions(bc.authToken)
 		if err != nil {
 			writeJSON(w, http.StatusBadGateway, map[string]string{"error": err.Error()})
 			return
@@ -92,15 +124,21 @@ func (a *App) handleBrokerHoldings(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "invalid id"})
 		return
 	}
-	client, token, name, err := a.brokerClient(id)
+	bc, err := a.brokerClient(id)
 	if err != nil {
 		writeJSON(w, http.StatusBadRequest, map[string]string{"error": err.Error()})
 		return
 	}
-	switch name {
+	switch bc.brokerName {
 	case "angel":
-		// Holdings may return data as an object, not an array
-		data, err := client.DoGet(angel.HoldingURL, token)
+		data, err := bc.angelClient.DoGet(angel.HoldingURL, bc.authToken)
+		if err != nil {
+			writeJSON(w, http.StatusBadGateway, map[string]string{"error": err.Error()})
+			return
+		}
+		writeJSON(w, http.StatusOK, data)
+	case "aliceblue":
+		data, err := bc.aliceClient.GetHoldings(bc.authToken, "cnc")
 		if err != nil {
 			writeJSON(w, http.StatusBadGateway, map[string]string{"error": err.Error()})
 			return
@@ -117,14 +155,21 @@ func (a *App) handleBrokerMargin(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "invalid id"})
 		return
 	}
-	client, token, name, err := a.brokerClient(id)
+	bc, err := a.brokerClient(id)
 	if err != nil {
 		writeJSON(w, http.StatusBadRequest, map[string]string{"error": err.Error()})
 		return
 	}
-	switch name {
+	switch bc.brokerName {
 	case "angel":
-		data, err := client.GetMargin(token)
+		data, err := bc.angelClient.GetMargin(bc.authToken)
+		if err != nil {
+			writeJSON(w, http.StatusBadGateway, map[string]string{"error": err.Error()})
+			return
+		}
+		writeJSON(w, http.StatusOK, data)
+	case "aliceblue":
+		data, err := bc.aliceClient.GetMargin(bc.authToken)
 		if err != nil {
 			writeJSON(w, http.StatusBadGateway, map[string]string{"error": err.Error()})
 			return
@@ -133,6 +178,65 @@ func (a *App) handleBrokerMargin(w http.ResponseWriter, r *http.Request) {
 	default:
 		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "unsupported"})
 	}
+}
+
+func normalizeOrders(orders []map[string]any) []map[string]any {
+	fieldMap := map[string]string{
+		"brokerOrderId":          "orderid",
+		"tradingSymbol":          "tradingsymbol",
+		"formattedInstrumentName": "tradingsymbol",
+		"transactionType":        "transactiontype",
+		"filledQuantity":         "filledshares",
+		"orderType":              "ordertype",
+		"product":                "producttype",
+		"orderStatus":            "orderstatus",
+		"rejectionReason":        "text",
+		"instrumentId":           "instrumenttoken",
+		"slTriggerPrice":         "triggerprice",
+		"requestTime":            "ordertime",
+		"orderDate":              "ordertime",
+		"orderDateTime":          "ordertime",
+		"timestamp":              "ordertime",
+		"createdAt":              "ordertime",
+		"created_at":            "ordertime",
+		"dateTime":               "ordertime",
+	}
+	for _, order := range orders {
+		for oldKey, newKey := range fieldMap {
+			if v, ok := order[oldKey]; ok {
+				if _, exists := order[newKey]; !exists {
+					order[newKey] = v
+				}
+			}
+		}
+	}
+	return orders
+}
+
+func checkAliceError(result map[string]any) error {
+	if result == nil {
+		return nil
+	}
+	if status, _ := result["status"].(string); status == "Not_Ok" || status == "Error" {
+		msg, _ := result["emsg"].(string)
+		if msg == "" {
+			msg, _ = result["message"].(string)
+		}
+		if msg != "" {
+			return fmt.Errorf("%s", msg)
+		}
+		return fmt.Errorf("request failed")
+	}
+	if results, ok := result["result"].([]any); ok && len(results) > 0 {
+		if first, ok := results[0].(map[string]any); ok {
+			if msg, ok := first["message"].(string); ok && msg != "" {
+				if brokerOrderID, _ := first["brokerOrderId"].(string); brokerOrderID == "" {
+					return fmt.Errorf("%s", msg)
+				}
+			}
+		}
+	}
+	return nil
 }
 
 func checkAngelError(result map[string]any) error {
@@ -155,19 +259,30 @@ func (a *App) handleBrokerPlaceOrder(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "invalid request"})
 		return
 	}
-	client, token, name, err := a.brokerClient(req.BrokerID)
+	bc, err := a.brokerClient(req.BrokerID)
 	if err != nil {
 		writeJSON(w, http.StatusBadRequest, map[string]string{"error": err.Error()})
 		return
 	}
-	switch name {
+	switch bc.brokerName {
 	case "angel":
-		result, err := client.PlaceOrder(token, req.Data)
+		result, err := bc.angelClient.PlaceOrder(bc.authToken, req.Data)
 		if err != nil {
 			writeJSON(w, http.StatusBadGateway, map[string]string{"error": err.Error()})
 			return
 		}
 		if err := checkAngelError(result); err != nil {
+			writeJSON(w, http.StatusBadGateway, map[string]string{"error": err.Error()})
+			return
+		}
+		writeJSON(w, http.StatusOK, result)
+	case "aliceblue":
+		result, err := bc.aliceClient.PlaceOrder(bc.authToken, req.Data)
+		if err != nil {
+			writeJSON(w, http.StatusBadGateway, map[string]string{"error": err.Error()})
+			return
+		}
+		if err := checkAliceError(result); err != nil {
 			writeJSON(w, http.StatusBadGateway, map[string]string{"error": err.Error()})
 			return
 		}
@@ -187,20 +302,32 @@ func (a *App) handleBrokerModifyOrder(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "invalid request"})
 		return
 	}
-	req.Data["orderid"] = req.OrderID
-	client, token, name, err := a.brokerClient(req.BrokerID)
+	req.Data["brokerOrderId"] = req.OrderID
+	bc, err := a.brokerClient(req.BrokerID)
 	if err != nil {
 		writeJSON(w, http.StatusBadRequest, map[string]string{"error": err.Error()})
 		return
 	}
-	switch name {
+	switch bc.brokerName {
 	case "angel":
-		result, err := client.ModifyOrder(token, req.Data)
+		req.Data["orderid"] = req.OrderID
+		result, err := bc.angelClient.ModifyOrder(bc.authToken, req.Data)
 		if err != nil {
 			writeJSON(w, http.StatusBadGateway, map[string]string{"error": err.Error()})
 			return
 		}
 		if err := checkAngelError(result); err != nil {
+			writeJSON(w, http.StatusBadGateway, map[string]string{"error": err.Error()})
+			return
+		}
+		writeJSON(w, http.StatusOK, result)
+	case "aliceblue":
+		result, err := bc.aliceClient.ModifyOrder(bc.authToken, req.Data)
+		if err != nil {
+			writeJSON(w, http.StatusBadGateway, map[string]string{"error": err.Error()})
+			return
+		}
+		if err := checkAliceError(result); err != nil {
 			writeJSON(w, http.StatusBadGateway, map[string]string{"error": err.Error()})
 			return
 		}
@@ -219,19 +346,30 @@ func (a *App) handleBrokerCancelOrder(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "invalid request"})
 		return
 	}
-	client, token, name, err := a.brokerClient(req.BrokerID)
+	bc, err := a.brokerClient(req.BrokerID)
 	if err != nil {
 		writeJSON(w, http.StatusBadRequest, map[string]string{"error": err.Error()})
 		return
 	}
-	switch name {
+	switch bc.brokerName {
 	case "angel":
-		result, err := client.CancelOrder(token, req.OrderID)
+		result, err := bc.angelClient.CancelOrder(bc.authToken, req.OrderID)
 		if err != nil {
 			writeJSON(w, http.StatusBadGateway, map[string]string{"error": err.Error()})
 			return
 		}
 		if err := checkAngelError(result); err != nil {
+			writeJSON(w, http.StatusBadGateway, map[string]string{"error": err.Error()})
+			return
+		}
+		writeJSON(w, http.StatusOK, result)
+	case "aliceblue":
+		result, err := bc.aliceClient.CancelOrder(bc.authToken, req.OrderID)
+		if err != nil {
+			writeJSON(w, http.StatusBadGateway, map[string]string{"error": err.Error()})
+			return
+		}
+		if err := checkAliceError(result); err != nil {
 			writeJSON(w, http.StatusBadGateway, map[string]string{"error": err.Error()})
 			return
 		}
