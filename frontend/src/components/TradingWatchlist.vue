@@ -148,7 +148,8 @@ async function confirmNew() {
 }
 
 function tickData(item) {
-  return item?.token ? ltpMap.value[item.token] : null
+  if (!item?.token) return null
+  return ltpMap.value[item.token] || ltpMap.value['999' + item.token] || null
 }
 
 function ltpDisplay(item) {

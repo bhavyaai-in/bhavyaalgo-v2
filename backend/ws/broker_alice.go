@@ -338,9 +338,6 @@ func (b *AliceBrokerClient) parseAliceTick(msg []byte) map[string]any {
 	if sym, ok := b.tokenSymbol[exch+"|"+token]; ok {
 		tick["symbol"] = sym
 	}
-	if len(token) >= 3 && token[:2] == "26" {
-		tick["token"] = "999" + token
-	}
 
 	lp := parseAnyFloat(raw["lp"])
 	if lp <= 0 {

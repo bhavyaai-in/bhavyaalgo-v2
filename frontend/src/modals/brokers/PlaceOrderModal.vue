@@ -36,7 +36,11 @@ ws.onTick((tick) => {
   }
 })
 
-const tick = computed(() => selectedContract.value ? ltpMap.value[selectedContract.value.token] : null)
+const tick = computed(() => {
+  if (!selectedContract.value) return null
+  const t = selectedContract.value.token
+  return ltpMap.value[t] || ltpMap.value['999' + t] || null
+})
 const ltp = computed(() => {
   if (!tick.value) return null
   const value = tick.value.ltp != null ? tick.value.ltp : (tick.value.close != null ? tick.value.close : 0)
