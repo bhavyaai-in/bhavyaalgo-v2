@@ -181,12 +181,13 @@ func (a *App) startBrokerStream(clientCode, authToken, feedToken, apiKey string)
 	}
 
 	tokenSymbol := make(map[string]string)
-	rows, err := a.DB.Query(`SELECT token, symbol FROM master_contracts`)
+	rows, err := a.DB.Query(`SELECT token, exchange, symbol FROM master_contracts`)
 	if err == nil {
 		for rows.Next() {
-			var token, symbol string
-			if rows.Scan(&token, &symbol) == nil {
+			var token, exchange, symbol string
+			if rows.Scan(&token, &exchange, &symbol) == nil {
 				tokenSymbol[token] = symbol
+				tokenSymbol[exchange+"|"+token] = symbol
 			}
 		}
 		rows.Close()
@@ -202,12 +203,13 @@ func (a *App) startAliceBrokerStream(clientID, sessionToken string) {
 	}
 
 	tokenSymbol := make(map[string]string)
-	rows, err := a.DB.Query(`SELECT token, symbol FROM master_contracts`)
+	rows, err := a.DB.Query(`SELECT token, exchange, symbol FROM master_contracts`)
 	if err == nil {
 		for rows.Next() {
-			var token, symbol string
-			if rows.Scan(&token, &symbol) == nil {
+			var token, exchange, symbol string
+			if rows.Scan(&token, &exchange, &symbol) == nil {
 				tokenSymbol[token] = symbol
+				tokenSymbol[exchange+"|"+token] = symbol
 			}
 		}
 		rows.Close()

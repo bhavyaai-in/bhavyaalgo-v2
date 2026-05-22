@@ -145,6 +145,9 @@ func createTables() {
 			log.Fatalf("create table: %v", err)
 		}
 	}
+	// Migrations for existing databases
+	db.Exec(`ALTER TABLE master_contracts ADD COLUMN broker_name TEXT NOT NULL DEFAULT ''`)
+	db.Exec(mcBrokerIndexSQL)
 }
 
 
@@ -178,18 +181,19 @@ func loadWatchlistSymbols(db *sql.DB) []string {
 
 func loadTokenSymbolMap(db *sql.DB) map[string]string {
 	m := make(map[string]string)
-	rows, err := db.Query(`SELECT token, symbol FROM master_contracts`)
+	rows, err := db.Query(`SELECT token, exchange, symbol FROM master_contracts`)
 	if err != nil {
 		log.Printf("load token symbol map: %v", err)
 		return m
 	}
 	defer rows.Close()
 	for rows.Next() {
-		var token, symbol string
-		if err := rows.Scan(&token, &symbol); err != nil {
+		var token, exchange, symbol string
+		if err := rows.Scan(&token, &exchange, &symbol); err != nil {
 			continue
 		}
 		m[token] = symbol
+		m[exchange+"|"+token] = symbol
 	}
 	return m
 }
@@ -245,6 +249,7 @@ CREATE TABLE IF NOT EXISTS master_contracts (
 	lotsize INTEGER NOT NULL DEFAULT 0,
 	instrumenttype TEXT NOT NULL DEFAULT '',
 	tick_size REAL NOT NULL DEFAULT 0,
+	broker_name TEXT NOT NULL DEFAULT '',
 	created_at TEXT NOT NULL DEFAULT (datetime('now','localtime'))
 );
 CREATE INDEX IF NOT EXISTS idx_mc_symbol ON master_contracts(symbol);
@@ -256,6 +261,8 @@ CREATE TABLE IF NOT EXISTS system_settings (
 	value TEXT NOT NULL DEFAULT '',
 	updated_at TEXT NOT NULL DEFAULT (datetime('now','localtime'))
 )`
+
+const mcBrokerIndexSQL = `CREATE INDEX IF NOT EXISTS idx_mc_broker ON master_contracts(broker_name)`
 
 const brokerColumnsTableSQL = `
 CREATE TABLE IF NOT EXISTS broker_columns (

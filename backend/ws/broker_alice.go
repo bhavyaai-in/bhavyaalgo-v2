@@ -328,18 +328,31 @@ func (b *AliceBrokerClient) parseAliceTick(msg []byte) map[string]any {
 
 	tick := map[string]any{"token": token}
 
+	var exch string
 	if e, ok := raw["e"].(string); ok {
+		exch = e
 		tick["exchange"] = e
 		tick["exchangeType"] = mapExchange(e)
 	}
 
-	if sym, ok := b.tokenSymbol[token]; ok {
+	if sym, ok := b.tokenSymbol[exch+"|"+token]; ok {
 		tick["symbol"] = sym
 	}
 	prefixToken := "999" + token
-	if sym, ok := b.tokenSymbol[prefixToken]; ok {
-		tick["token"] = prefixToken
-		tick["symbol"] = sym
+	exchMap := map[string]string{
+		"NSE": "NSE_INDEX",
+		"BSE": "BSE_INDEX",
+		"MCX": "MCX_INDEX",
+	}
+	for _, tryExch := range []string{exch, exchMap[exch]} {
+		if tryExch == "" {
+			continue
+		}
+		if sym, ok := b.tokenSymbol[tryExch+"|"+prefixToken]; ok {
+			tick["token"] = prefixToken
+			tick["symbol"] = sym
+			break
+		}
 	}
 
 	lp := parseAnyFloat(raw["lp"])
