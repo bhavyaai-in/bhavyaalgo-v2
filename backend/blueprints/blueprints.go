@@ -8,6 +8,7 @@ import (
 	"runtime/debug"
 
 	"bhavyaaialgo/backend/db/gen"
+	"bhavyaaialgo/backend/internal/httperr"
 	"bhavyaaialgo/backend/ws"
 )
 
@@ -23,11 +24,7 @@ type App struct {
 }
 
 func writeJSON(w http.ResponseWriter, status int, v any) {
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(status)
-	if err := json.NewEncoder(w).Encode(v); err != nil {
-		log.Printf("json encode error: %v", err)
-	}
+	httperr.WriteJSON(w, status, v)
 }
 
 func (a *App) authMiddleware(next http.HandlerFunc) http.HandlerFunc {

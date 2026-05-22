@@ -6,7 +6,7 @@ function handleCancel(o) { emit('cancel', o) }
 function handleEdit(o) { emit('edit', o) }
 
 function orderTime(o) {
-  const raw = o.ordertime || o.requesttime || o.timestamp || o.created_at || o.createdAt || o.orderDate || o.orderDateTime || o.dateTime
+  const raw = o.orderTime || o.updatetime || o.timestamp || o.created_at || o.createdAt || o.orderDate || o.orderDateTime || o.dateTime
   if (!raw) return '-'
   const asNumber = Number(raw)
   if (!Number.isNaN(asNumber) && String(raw).match(/^\d+$/)) {
@@ -16,11 +16,8 @@ function orderTime(o) {
       return parsed.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' })
     }
   }
-  const parsed = new Date(raw)
-  if (!Number.isNaN(parsed.getTime())) {
-    return parsed.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' })
-  }
-  return String(raw)
+  
+  return String(raw.split(' ')[1]).replace('T', ' ')
 }
 
 function statusClass(o) {
@@ -43,7 +40,7 @@ function statusClass(o) {
       <tbody>
         <tr v-for="o in items" :key="o.orderid">
           <td><strong>{{ o.tradingsymbol }}</strong></td>
-          <td>{{ o.orderTime }}</td><td>{{ o.transactiontype }}</td>
+          <td>{{ orderTime(o) }}</td><td>{{ o.transactiontype }}</td>
           <td>{{ o.quantity }}</td><td>{{ o.filledshares }}</td><td>{{ o.price }}</td>
           <td>{{ o.ordertype }}</td><td>{{ o.producttype }}</td>
           <td>
