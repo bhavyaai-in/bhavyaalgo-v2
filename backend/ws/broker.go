@@ -33,6 +33,7 @@ type BrokerClient struct {
 	reconnectMaxDelay   time.Duration
 	connectTimeout      time.Duration
 	reconnectAttempt    int
+	parser              AngelBinaryParser
 }
 
 const (
@@ -59,6 +60,88 @@ var exchangeTypes = map[string]int{
 	"MCX": 5, "MCX_INDEX": 5,
 }
 
+type AngelBinaryParser struct {
+	Hub *Hub
+}
+
+func (bp *AngelBinaryParser) HandleIncomingStream(msg []byte, tokenSymbol map[string]string) {
+	tick, ok := bp.parseTick(msg, tokenSymbol)
+	if !ok {
+		return
+	}
+	tick.Symbol = tokenSymbol[tick.Token]
+	payload, err := json.Marshal(map[string]any{
+		"type": "tick",
+		"data": tick,
+	})
+	if err != nil {
+		return
+	}
+	bp.Hub.BroadcastPreEncodedTick(tick.Token, payload)
+}
+
+func (bp *AngelBinaryParser) parseTick(buf []byte, tokenSymbol map[string]string) (Tick, bool) {
+	if len(buf) < 27 {
+		return Tick{}, false
+	}
+	mode := buf[0]
+	exchType := int(buf[1])
+	token := strings.TrimRight(string(buf[2:27]), "\x00")
+
+	var t Tick
+	t.Token = token
+	t.ExchangeType = exchType
+
+	switch mode {
+	case ModeLTP:
+		if len(buf) < 47 {
+			return Tick{}, false
+		}
+		ltp := float64(int64(binary.LittleEndian.Uint32(buf[43:47]))) / 100
+		if ltp <= 0 {
+			return Tick{}, false
+		}
+		t.LTP = ltp
+	case ModeQuote:
+		if len(buf) < 123 {
+			return Tick{}, false
+		}
+		ltp := int64(binary.LittleEndian.Uint64(buf[43:51]))
+		if ltp <= 0 {
+			return Tick{}, false
+		}
+		closeP := int64(binary.LittleEndian.Uint64(buf[115:123]))
+		t.LTP = float64(ltp) / 100
+		t.Change = float64(ltp-closeP) / 100
+		t.Volume = int64(binary.LittleEndian.Uint64(buf[67:75]))
+		t.Open = float64(int64(binary.LittleEndian.Uint64(buf[91:99]))) / 100
+		t.High = float64(int64(binary.LittleEndian.Uint64(buf[99:107]))) / 100
+		t.Low = float64(int64(binary.LittleEndian.Uint64(buf[107:115]))) / 100
+		t.Close = float64(closeP) / 100
+	case ModeSnapQuote:
+		if len(buf) < 379 {
+			return Tick{}, false
+		}
+		ltp := int64(binary.LittleEndian.Uint64(buf[43:51]))
+		if ltp <= 0 {
+			return Tick{}, false
+		}
+		closeP := int64(binary.LittleEndian.Uint64(buf[115:123]))
+		t.LTP = float64(ltp) / 100
+		t.Change = float64(ltp-closeP) / 100
+		t.Volume = int64(binary.LittleEndian.Uint64(buf[67:75]))
+		t.Open = float64(int64(binary.LittleEndian.Uint64(buf[91:99]))) / 100
+		t.High = float64(int64(binary.LittleEndian.Uint64(buf[99:107]))) / 100
+		t.Low = float64(int64(binary.LittleEndian.Uint64(buf[107:115]))) / 100
+		t.Close = float64(closeP) / 100
+		t.OI = int64(binary.LittleEndian.Uint64(buf[131:139]))
+	default:
+		log.Printf("broker: unknown mode %d for token %s", mode, token)
+		return Tick{}, false
+	}
+	return t, true
+}
+
 func NewBrokerClient(clientCode, authToken, feedToken, apiKey string, hub *Hub, tokenSymbol map[string]string) *BrokerClient {
 	return &BrokerClient{
 		clientCode:          clientCode,
@@ -72,6 +155,7 @@ func NewBrokerClient(clientCode, authToken, feedToken, apiKey string, hub *Hub, 
 		reconnectMaxRetries: defaultReconnectMaxAttempts,
 		reconnectMaxDelay:   defaultReconnectMaxDelay,
 		connectTimeout:      defaultConnectTimeout,
+		parser:              AngelBinaryParser{Hub: hub},
 	}
 }
 
@@ -189,10 +273,7 @@ func (b *BrokerClient) readLoop() {
 		if msgType == websocket.TextMessage {
 			continue
 		}
-		tick := parseTick(msg, b.tokenSymbol)
-		if tick != nil {
-			b.hub.BroadcastTick(tick)
-		}
+		b.parser.HandleIncomingStream(msg, b.tokenSymbol)
 	}
 }
 
@@ -287,73 +368,3 @@ func groupTokens(symbols []string) []tokenGroup {
 	}
 	return result
 }
-
-func parseTick(buf []byte, tokenSymbol map[string]string) map[string]any {
-	if len(buf) < 27 {
-		return nil
-	}
-	mode := buf[0]
-	exchType := int(buf[1])
-	token := strings.TrimRight(string(buf[2:27]), "\x00")
-	tick := map[string]any{
-		"token":        token,
-		"exchangeType": exchType,
-	}
-	if sym, ok := tokenSymbol[token]; ok {
-		tick["symbol"] = sym
-	}
-	switch mode {
-	case ModeLTP:
-		if len(buf) < 47 {
-			return nil
-		}
-		ltp := float64(int64(binary.LittleEndian.Uint32(buf[43:47]))) / 100
-		if ltp <= 0 {
-			return nil
-		}
-		tick["ltp"] = ltp
-	case ModeQuote:
-		if len(buf) < 123 {
-			return nil
-		}
-		ltp := int64(binary.LittleEndian.Uint64(buf[43:51]))
-		if ltp <= 0 {
-			return nil
-		}
-		closeP := int64(binary.LittleEndian.Uint64(buf[115:123]))
-		tick["ltp"] = float64(ltp) / 100
-		tick["change"] = float64(ltp-closeP) / 100
-		tick["volume"] = int64(binary.LittleEndian.Uint64(buf[67:75]))
-		tick["open"] = float64(int64(binary.LittleEndian.Uint64(buf[91:99]))) / 100
-		tick["high"] = float64(int64(binary.LittleEndian.Uint64(buf[99:107]))) / 100
-		tick["low"] = float64(int64(binary.LittleEndian.Uint64(buf[107:115]))) / 100
-		tick["close"] = float64(closeP) / 100
-	case ModeSnapQuote:
-		if len(buf) < 379 {
-			return nil
-		}
-		ltp := int64(binary.LittleEndian.Uint64(buf[43:51]))
-		if ltp <= 0 {
-			return nil
-		}
-		closeP := int64(binary.LittleEndian.Uint64(buf[115:123]))
-		tick["ltp"] = float64(ltp) / 100
-		tick["change"] = float64(ltp-closeP) / 100
-		tick["volume"] = int64(binary.LittleEndian.Uint64(buf[67:75]))
-		tick["open"] = float64(int64(binary.LittleEndian.Uint64(buf[91:99]))) / 100
-		tick["high"] = float64(int64(binary.LittleEndian.Uint64(buf[99:107]))) / 100
-		tick["low"] = float64(int64(binary.LittleEndian.Uint64(buf[107:115]))) / 100
-		tick["close"] = float64(closeP) / 100
-		tick["oi"] = int64(binary.LittleEndian.Uint64(buf[131:139]))
-		tick["upperCircuit"] = float64(int64(binary.LittleEndian.Uint64(buf[347:355]))) / 100
-		tick["lowerCircuit"] = float64(int64(binary.LittleEndian.Uint64(buf[355:363]))) / 100
-		tick["fiftyTwoWeekHigh"] = float64(int64(binary.LittleEndian.Uint64(buf[363:371]))) / 100
-		tick["fiftyTwoWeekLow"] = float64(int64(binary.LittleEndian.Uint64(buf[371:379]))) / 100
-	default:
-		log.Printf("broker: unknown mode %d for token %s", mode, token)
-		return nil
-	}
-	return tick
-}
-
-

@@ -2,7 +2,7 @@
 // versions:
 //   sqlc v1.31.1
 
-package gen
+package tradingdb
 
 import (
 	"database/sql"
@@ -46,23 +46,6 @@ type BrokerList struct {
 	Message        string `json:"message"`
 	CreatedAt      string `json:"created_at"`
 	UpdatedAt      string `json:"updated_at"`
-}
-
-type MasterContract struct {
-	ID             int64   `json:"id"`
-	Symbol         string  `json:"symbol"`
-	Brsymbol       string  `json:"brsymbol"`
-	Name           string  `json:"name"`
-	Exchange       string  `json:"exchange"`
-	Brexchange     string  `json:"brexchange"`
-	Token          string  `json:"token"`
-	Expiry         string  `json:"expiry"`
-	Strike         float64 `json:"strike"`
-	Lotsize        int64   `json:"lotsize"`
-	Instrumenttype string  `json:"instrumenttype"`
-	TickSize       float64 `json:"tick_size"`
-	BrokerName     string  `json:"broker_name"`
-	CreatedAt      string  `json:"created_at"`
 }
 
 type Order struct {
@@ -189,35 +172,4 @@ type StrategyType struct {
 	RulesExplanation string `json:"rules_explanation"`
 	CreatedAt        string `json:"created_at"`
 	UpdatedAt        string `json:"updated_at"`
-}
-
-type SystemSetting struct {
-	Key       string `json:"key"`
-	Value     string `json:"value"`
-	UpdatedAt string `json:"updated_at"`
-}
-
-type Watchlist struct {
-	ID        int64  `json:"id"`
-	Name      string `json:"name"`
-	SortOrder int64  `json:"sort_order"`
-	CreatedAt string `json:"created_at"`
-	UpdatedAt string `json:"updated_at"`
-}
-
-type WatchlistItem struct {
-	ID             int64   `json:"id"`
-	WatchlistID    int64   `json:"watchlist_id"`
-	Symbol         string  `json:"symbol"`
-	Brsymbol       string  `json:"brsymbol"`
-	Name           string  `json:"name"`
-	Exchange       string  `json:"exchange"`
-	Token          string  `json:"token"`
-	Expiry         string  `json:"expiry"`
-	Strike         float64 `json:"strike"`
-	Lotsize        int64   `json:"lotsize"`
-	Instrumenttype string  `json:"instrumenttype"`
-	TickSize       float64 `json:"tick_size"`
-	SortOrder      int64   `json:"sort_order"`
-	CreatedAt      string  `json:"created_at"`
 }

@@ -10,7 +10,7 @@ import (
 	"strings"
 	"time"
 
-	"bhavyaaialgo/backend/db/gen"
+	marketdb "bhavyaaialgo/backend/db/market/gen"
 )
 
 const (
@@ -19,11 +19,7 @@ const (
 	angelSettingKey          = MasterContractSettingKey
 )
 
-// DownloadMasterContract downloads & processes the Angel One master contract JSON.
-// It checks last success time — if < 24h ago, skips.
-// On failure, logs error and uses existing data.
-func DownloadMasterContract(ctx context.Context, Q *gen.Queries) {
-	// Check when we last succeeded
+func DownloadMasterContract(ctx context.Context, Q *marketdb.Queries) {
 	lastVal, _ := Q.GetSetting(ctx, angelSettingKey)
 	if lastVal != "" {
 		if t, err := time.Parse(time.RFC3339, lastVal); err == nil {
@@ -57,38 +53,33 @@ func DownloadMasterContract(ctx context.Context, Q *gen.Queries) {
 		return
 	}
 
-	// Clear old data for this broker and insert fresh
 	Q.ClearBrokerContracts(ctx, "angel")
 	inserted := 0
 	for _, raw := range rows {
 		row := processAngelRow(raw)
 		if err := Q.BulkInsertMasterContract(ctx, row); err != nil {
-			// skip duplicates / bad rows
 			continue
 		}
 		inserted++
 	}
 
-	// Mark success
 	now := time.Now().Format(time.RFC3339)
-	Q.UpsertSetting(ctx, gen.UpsertSettingParams{
+	Q.UpsertSetting(ctx, marketdb.UpsertSettingParams{
 		Key: angelSettingKey, Value: now,
 	})
 	log.Printf("master contract: inserted %d records", inserted)
 }
 
-// MarkDownloadAttempt records a failed attempt timestamp.
-func MarkDownloadAttempt(ctx context.Context, Q *gen.Queries, err error) {
-	Q.UpsertSetting(ctx, gen.UpsertSettingParams{
+func MarkDownloadAttempt(ctx context.Context, Q *marketdb.Queries, err error) {
+	Q.UpsertSetting(ctx, marketdb.UpsertSettingParams{
 		Key: angelSettingKey + "_last_try", Value: time.Now().Format(time.RFC3339),
 	})
-	Q.UpsertSetting(ctx, gen.UpsertSettingParams{
+	Q.UpsertSetting(ctx, marketdb.UpsertSettingParams{
 		Key: angelSettingKey + "_last_error", Value: err.Error(),
 	})
 }
 
-// processAngelRow normalises a raw Angel One JSON row into insert params.
-func processAngelRow(raw map[string]any) gen.BulkInsertMasterContractParams {
+func processAngelRow(raw map[string]any) marketdb.BulkInsertMasterContractParams {
 	get := func(k string) string {
 		if v, ok := raw[k]; ok && v != nil {
 			return fmt.Sprintf("%v", v)
@@ -132,7 +123,6 @@ func processAngelRow(raw map[string]any) gen.BulkInsertMasterContractParams {
 
 	exchange := get("exch_seg")
 	instType := get("instrumenttype")
-	// Map NSE/BSE index types
 	if instType == "AMXIDX" {
 		switch exchange {
 		case "NSE":
@@ -144,7 +134,7 @@ func processAngelRow(raw map[string]any) gen.BulkInsertMasterContractParams {
 		}
 	}
 
-	return gen.BulkInsertMasterContractParams{
+	return marketdb.BulkInsertMasterContractParams{
 		Symbol:          symbol,
 		Brsymbol:        symbol,
 		Name:            get("name"),

@@ -22,7 +22,7 @@ func (a *App) handleBrokerProfile(w http.ResponseWriter, r *http.Request) {
 	}
 
 	var authToken, brokerName, brokerAPI, brokerAPISecret string
-	err = a.DB.QueryRow(
+	err = a.TradingDB.QueryRow(
 		`SELECT broker_token, broker_name, broker_api, broker_api_secret FROM brokers WHERE id = ?`, id,
 	).Scan(&authToken, &brokerName, &brokerAPI, &brokerAPISecret)
 	if err != nil {

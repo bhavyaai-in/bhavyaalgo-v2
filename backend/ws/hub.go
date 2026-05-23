@@ -1,6 +1,7 @@
 package ws
 
 import (
+	"encoding/json"
 	"log"
 	"net/http"
 	"sync"
@@ -14,20 +15,21 @@ func NewUpgrader() websocket.Upgrader {
 	}
 }
 
-// Hub manages frontend WebSocket clients and subscription state.
 type Hub struct {
-	mu         sync.RWMutex
-	clients    map[*Client]bool
-	subscribed map[string]int // symbol -> subscriber count
-	broker     *BrokerClient  // Angel One stream
+	mu          sync.RWMutex
+	clients     map[*Client]bool
+	subscribers map[string]map[*Client]bool
+	subscribed  map[string]int
+	broker      *BrokerClient
 	aliceBroker *AliceBrokerClient
-	brokerName string // current active broker ("angel", "aliceblue", "")
+	brokerName  string
 }
 
 func NewHub() *Hub {
 	return &Hub{
-		clients:    make(map[*Client]bool),
-		subscribed: make(map[string]int),
+		clients:     make(map[*Client]bool),
+		subscribers: make(map[string]map[*Client]bool),
+		subscribed:  make(map[string]int),
 	}
 }
 
@@ -40,8 +42,13 @@ func (h *Hub) Register(c *Client) {
 func (h *Hub) Unregister(c *Client) {
 	h.mu.Lock()
 	delete(h.clients, c)
-	// Decrement subscription counts for this client's symbols
 	for _, sym := range c.symbols {
+		if subs, ok := h.subscribers[sym]; ok {
+			delete(subs, c)
+			if len(subs) == 0 {
+				delete(h.subscribers, sym)
+			}
+		}
 		h.subscribed[sym]--
 		if h.subscribed[sym] <= 0 {
 			delete(h.subscribed, sym)
@@ -51,10 +58,13 @@ func (h *Hub) Unregister(c *Client) {
 	h.syncBroker()
 }
 
-// Subscribe adds symbols for a client and syncs broker subscriptions.
 func (h *Hub) Subscribe(c *Client, symbols []string) {
 	h.mu.Lock()
 	for _, sym := range symbols {
+		if h.subscribers[sym] == nil {
+			h.subscribers[sym] = make(map[*Client]bool)
+		}
+		h.subscribers[sym][c] = true
 		h.subscribed[sym]++
 		c.symbols = append(c.symbols, sym)
 	}
@@ -62,15 +72,19 @@ func (h *Hub) Subscribe(c *Client, symbols []string) {
 	h.syncBroker()
 }
 
-// Unsubscribe removes symbols for a client.
 func (h *Hub) Unsubscribe(c *Client, symbols []string) {
 	h.mu.Lock()
 	for _, sym := range symbols {
+		if subs, ok := h.subscribers[sym]; ok {
+			delete(subs, c)
+			if len(subs) == 0 {
+				delete(h.subscribers, sym)
+			}
+		}
 		h.subscribed[sym]--
 		if h.subscribed[sym] <= 0 {
 			delete(h.subscribed, sym)
 		}
-		// Remove from client's symbol list
 		for i := len(c.symbols) - 1; i >= 0; i-- {
 			if c.symbols[i] == sym {
 				c.symbols = append(c.symbols[:i], c.symbols[i+1:]...)
@@ -81,7 +95,6 @@ func (h *Hub) Unsubscribe(c *Client, symbols []string) {
 	h.syncBroker()
 }
 
-// SyncBroker adjusts broker subscriptions based on current needs.
 func (h *Hub) syncBroker() {
 	h.mu.RLock()
 	symbols := make([]string, 0, len(h.subscribed))
@@ -117,7 +130,22 @@ func (h *Hub) syncBroker() {
 	}
 }
 
-// BroadcastTick sends a market tick to all connected clients.
+func (h *Hub) BroadcastPreEncodedTick(token string, payload []byte) {
+	h.mu.RLock()
+	clients, ok := h.subscribers[token]
+	if !ok || len(clients) == 0 {
+		h.mu.RUnlock()
+		return
+	}
+	for c := range clients {
+		select {
+		case c.send <- payload:
+		default:
+		}
+	}
+	h.mu.RUnlock()
+}
+
 func (h *Hub) BroadcastTick(tick map[string]any) {
 	msg := map[string]any{
 		"type": "tick",
@@ -125,16 +153,15 @@ func (h *Hub) BroadcastTick(tick map[string]any) {
 	}
 	h.mu.RLock()
 	for c := range h.clients {
+		buf, _ := json.Marshal(msg)
 		select {
-		case c.send <- msg:
+		case c.send <- buf:
 		default:
-			// Client send buffer full, drop tick for this client
 		}
 	}
 	h.mu.RUnlock()
 }
 
-// BroadcastNotification sends a notification to all connected clients.
 func (h *Hub) BroadcastNotification(notification map[string]any) {
 	msg := map[string]any{
 		"type": "notification",
@@ -142,15 +169,15 @@ func (h *Hub) BroadcastNotification(notification map[string]any) {
 	}
 	h.mu.RLock()
 	for c := range h.clients {
+		buf, _ := json.Marshal(msg)
 		select {
-		case c.send <- msg:
+		case c.send <- buf:
 		default:
 		}
 	}
 	h.mu.RUnlock()
 }
 
-// SetBroker attaches the Angel One streaming client.
 func (h *Hub) SetBroker(b *BrokerClient) {
 	h.broker = b
 }

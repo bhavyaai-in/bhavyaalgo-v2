@@ -2,7 +2,6 @@ package blueprints
 
 import (
 	"context"
-	"database/sql"
 	"encoding/json"
 	"log"
 	"net/http"
@@ -44,7 +43,7 @@ func (a *App) handleConnectBroker(w http.ResponseWriter, r *http.Request) {
 	}
 
 	var b brokerAuthRow
-	err := a.DB.QueryRow(`
+	err := a.TradingDB.QueryRowContext(r.Context(), `
 		SELECT id, broker_userid, broker_password, broker_pin, broker_qr_key,
 		       broker_name, broker_api, broker_api_secret
 		FROM brokers WHERE id = ?
@@ -84,13 +83,13 @@ func (a *App) handleConnectBroker(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if err != nil {
-		a.DB.Exec(`UPDATE brokers SET token_status=?, message=? WHERE id=?`,
+		a.TradingDB.ExecContext(r.Context(), `UPDATE brokers SET token_status=?, message=? WHERE id=?`,
 			"error", err.Error(), b.ID)
 		writeJSON(w, http.StatusBadGateway, map[string]string{"error": err.Error()})
 		return
 	}
 
-	a.DB.Exec(`
+	a.TradingDB.ExecContext(r.Context(), `
 		UPDATE brokers SET
 			broker_token=?, feed_token=?, token_status=?, broker_token_date=datetime('now','localtime'), message=?
 		WHERE id=?
@@ -112,7 +111,7 @@ func (a *App) handleConnectBroker(w http.ResponseWriter, r *http.Request) {
 
 	// Download master contracts in background and notify frontend
 	go func() {
-		lastVal, _ := a.Q.GetSetting(context.Background(), setup.MasterContractSettingKey)
+		lastVal, _ := a.MarketQ.GetSetting(context.Background(), setup.MasterContractSettingKey)
 		if lastVal != "" {
 			if t, err := time.Parse(time.RFC3339, lastVal); err == nil {
 				if time.Since(t) < 24*time.Hour {
@@ -127,7 +126,7 @@ func (a *App) handleConnectBroker(w http.ResponseWriter, r *http.Request) {
 				"type":    "info",
 			})
 		}
-		setup.DownloadMasterContract(context.Background(), a.Q)
+		setup.DownloadMasterContract(context.Background(), a.MarketQ)
 		if a.Hub != nil {
 			a.Hub.BroadcastNotification(map[string]any{
 				"title":   "Master Contracts Updated",
@@ -142,7 +141,6 @@ func generateTOTP(secret string) (code string) {
 	if secret == "" {
 		return ""
 	}
-	// Handle otpauth:// URL format
 	if strings.HasPrefix(secret, "otpauth://") {
 		for _, part := range strings.Split(secret, "&") {
 			if strings.HasPrefix(part, "secret=") {
@@ -181,7 +179,7 @@ func (a *App) startBrokerStream(clientCode, authToken, feedToken, apiKey string)
 	}
 
 	tokenSymbol := make(map[string]string)
-	rows, err := a.DB.Query(`SELECT token, exchange, symbol FROM master_contracts`)
+	rows, err := a.MarketDB.QueryContext(context.Background(), `SELECT token, exchange, symbol FROM master_contracts`)
 	if err == nil {
 		for rows.Next() {
 			var token, exchange, symbol string
@@ -193,7 +191,7 @@ func (a *App) startBrokerStream(clientCode, authToken, feedToken, apiKey string)
 		rows.Close()
 	}
 
-	symbols := loadWatchlistSymbols(a.DB)
+	symbols := a.loadWatchlistSymbols()
 	a.Hub.StartBroker(clientCode, authToken, feedToken, apiKey, tokenSymbol, symbols)
 }
 
@@ -203,7 +201,7 @@ func (a *App) startAliceBrokerStream(clientID, sessionToken string) {
 	}
 
 	tokenSymbol := make(map[string]string)
-	rows, err := a.DB.Query(`SELECT token, exchange, symbol FROM master_contracts`)
+	rows, err := a.MarketDB.QueryContext(context.Background(), `SELECT token, exchange, symbol FROM master_contracts`)
 	if err == nil {
 		for rows.Next() {
 			var token, exchange, symbol string
@@ -219,12 +217,12 @@ func (a *App) startAliceBrokerStream(clientID, sessionToken string) {
 		log.Printf("alice: createWsSess failed: %v", err)
 	}
 
-	symbols := loadWatchlistSymbols(a.DB)
+	symbols := a.loadWatchlistSymbols()
 	a.Hub.StartAliceBroker(sessionToken, clientID, tokenSymbol, symbols)
 }
 
-func loadWatchlistSymbols(db *sql.DB) []string {
-	rows, err := db.Query(`
+func (a *App) loadWatchlistSymbols() []string {
+	rows, err := a.MarketDB.QueryContext(context.Background(), `
 		SELECT wi.token, COALESCE(mc.exchange, wi.exchange)
 		FROM watchlist_items wi
 		LEFT JOIN master_contracts mc ON
@@ -248,5 +246,3 @@ func loadWatchlistSymbols(db *sql.DB) []string {
 	log.Printf("loaded %d watchlist symbols", len(symbols))
 	return symbols
 }
-
-

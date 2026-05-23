@@ -6,10 +6,10 @@ import (
 	"log"
 	"os"
 
-	"bhavyaaialgo/backend/db/gen"
+	tradingdb "bhavyaaialgo/backend/db/trading/gen"
 )
 
-func SeedFromFile(ctx context.Context, Q *gen.Queries) {
+func SeedFromFile(ctx context.Context, Q *tradingdb.Queries) {
 	count, err := Q.GetBrokerListCount(ctx)
 	if err != nil || count > 0 {
 		return
@@ -55,7 +55,7 @@ func SeedFromFile(ctx context.Context, Q *gen.Queries) {
 		if e.IsActive {
 			active = 1
 		}
-		Q.InsertBrokerListEntry(ctx, gen.InsertBrokerListEntryParams{
+		Q.InsertBrokerListEntry(ctx, tradingdb.InsertBrokerListEntryParams{
 			Name: e.Name, BrokerImageUrl: e.ImageURL, IsActive: active,
 		})
 	}
@@ -68,7 +68,7 @@ func SeedFromFile(ctx context.Context, Q *gen.Queries) {
 		if b.IsAutologin {
 			autologin = 1
 		}
-		Q.CreateBroker(ctx, gen.CreateBrokerParams{
+		Q.CreateBroker(ctx, tradingdb.CreateBrokerParams{
 			FriendlyName:    b.FriendlyName,
 			BrokerUserid:    b.BrokerUserid,
 			BrokerPassword:  b.BrokerPassword,
@@ -89,7 +89,7 @@ func SeedFromFile(ctx context.Context, Q *gen.Queries) {
 	}
 	for _, c := range seed.BrokerColumns {
 		colsJSON, _ := json.Marshal(c.Columns)
-		Q.UpsertBrokerColumn(ctx, gen.UpsertBrokerColumnParams{
+		Q.UpsertBrokerColumn(ctx, tradingdb.UpsertBrokerColumnParams{
 			BrokerName: c.BrokerName, ColumnsJson: string(colsJSON),
 		})
 	}

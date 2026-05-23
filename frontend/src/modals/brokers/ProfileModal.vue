@@ -1,6 +1,7 @@
 <script setup>
 import { ref, watch } from 'vue'
 import { api } from '../../utils/api.js'
+import BrokerState from '../../components/brokers/BrokerState.vue'
 
 const props = defineProps({ show: Boolean, broker: Object })
 const emit = defineEmits(['close'])
@@ -32,14 +33,30 @@ function flatRows(obj) {
   if (obj.data && typeof obj.data === 'object' && Object.keys(obj.data).length) return flat(obj.data)
   return flat(obj)
 }
+
+function stateType() {
+  if (loading.value) return 'loading'
+  if (error.value) {
+    if (error.value === 'could not connect broker' || error.value === 'broker token not generated') {
+      return 'disconnected'
+    }
+    return 'error'
+  }
+  return null
+}
+
+function stateMessage() {
+  if (loading.value) return 'Loading...'
+  if (error.value) return error.value
+  return ''
+}
 </script>
 
 <template>
   <div v-if="show" class="modal-overlay" @click.self="emit('close')">
     <div class="modal-box">
       <h3>Profile — {{ cap(broker?.friendly_name || broker?.broker_name || '') }}</h3>
-      <div v-if="loading" class="state-msg">Loading...</div>
-      <div v-else-if="error" class="state-msg error">{{ error }}</div>
+      <BrokerState v-if="loading || error" :type="stateType()" :message="stateMessage()" />
       <div v-else class="table-wrap">
         <table class="data-table kv">
           <tr v-for="row in flatRows(data)" :key="row.key"><td class="pkey">{{ row.key }}</td><td>{{ row.value }}</td></tr>

@@ -1,71 +1,3 @@
-package db
-
-const WatchlistsTableSQL = `CREATE TABLE IF NOT EXISTS watchlists (
-	id INTEGER PRIMARY KEY AUTOINCREMENT,
-	name TEXT NOT NULL,
-	sort_order INTEGER NOT NULL DEFAULT 0,
-	created_at TEXT NOT NULL DEFAULT (datetime('now','localtime')),
-	updated_at TEXT NOT NULL DEFAULT (datetime('now','localtime'))
-)`
-
-const WatchlistItemsTableSQL = `CREATE TABLE IF NOT EXISTS watchlist_items (
-	id INTEGER PRIMARY KEY AUTOINCREMENT,
-	watchlist_id INTEGER NOT NULL REFERENCES watchlists(id) ON DELETE CASCADE,
-	symbol TEXT NOT NULL,
-	brsymbol TEXT NOT NULL DEFAULT '',
-	name TEXT NOT NULL DEFAULT '',
-	exchange TEXT NOT NULL DEFAULT '',
-	token TEXT NOT NULL DEFAULT '',
-	expiry TEXT NOT NULL DEFAULT '',
-	strike REAL NOT NULL DEFAULT 0,
-	lotsize INTEGER NOT NULL DEFAULT 0,
-	instrumenttype TEXT NOT NULL DEFAULT '',
-	tick_size REAL NOT NULL DEFAULT 0,
-	sort_order INTEGER NOT NULL DEFAULT 0,
-	created_at TEXT NOT NULL DEFAULT (datetime('now','localtime'))
-)`
-
-const WatchlistItemsIdxSQL = `CREATE INDEX IF NOT EXISTS idx_wi_watchlist ON watchlist_items(watchlist_id)`
-
-const MasterContractsTableSQL = `
-CREATE TABLE IF NOT EXISTS master_contracts (
-	id INTEGER PRIMARY KEY AUTOINCREMENT,
-	symbol TEXT NOT NULL,
-	brsymbol TEXT NOT NULL DEFAULT '',
-	name TEXT NOT NULL DEFAULT '',
-	exchange TEXT NOT NULL DEFAULT '',
-	brexchange TEXT NOT NULL DEFAULT '',
-	token TEXT NOT NULL DEFAULT '',
-	expiry TEXT NOT NULL DEFAULT '',
-	strike REAL NOT NULL DEFAULT 0,
-	lotsize INTEGER NOT NULL DEFAULT 0,
-	instrumenttype TEXT NOT NULL DEFAULT '',
-	tick_size REAL NOT NULL DEFAULT 0,
-	broker_name TEXT NOT NULL DEFAULT '',
-	created_at TEXT NOT NULL DEFAULT (datetime('now','localtime'))
-);
-CREATE INDEX IF NOT EXISTS idx_mc_symbol ON master_contracts(symbol);
-CREATE INDEX IF NOT EXISTS idx_mc_exchange ON master_contracts(exchange);`
-
-const SystemSettingsTableSQL = `
-CREATE TABLE IF NOT EXISTS system_settings (
-	key TEXT PRIMARY KEY,
-	value TEXT NOT NULL DEFAULT '',
-	updated_at TEXT NOT NULL DEFAULT (datetime('now','localtime'))
-)`
-
-const McBrokerIndexSQL = `CREATE INDEX IF NOT EXISTS idx_mc_broker ON master_contracts(broker_name)`
-
-const BrokerColumnsTableSQL = `
-CREATE TABLE IF NOT EXISTS broker_columns (
-	id INTEGER PRIMARY KEY AUTOINCREMENT,
-	broker_name TEXT NOT NULL UNIQUE,
-	columns_json TEXT NOT NULL DEFAULT '[]',
-	created_at TEXT NOT NULL DEFAULT (datetime('now','localtime')),
-	updated_at TEXT NOT NULL DEFAULT (datetime('now','localtime'))
-)`
-
-const BrokerListTableSQL = `
 CREATE TABLE IF NOT EXISTS broker_list (
 	id INTEGER PRIMARY KEY AUTOINCREMENT,
 	name TEXT NOT NULL UNIQUE,
@@ -74,9 +6,16 @@ CREATE TABLE IF NOT EXISTS broker_list (
 	message TEXT NOT NULL DEFAULT '',
 	created_at TEXT NOT NULL DEFAULT (datetime('now','localtime')),
 	updated_at TEXT NOT NULL DEFAULT (datetime('now','localtime'))
-)`
+);
 
-const BrokersTableSQL = `
+CREATE TABLE IF NOT EXISTS broker_columns (
+	id INTEGER PRIMARY KEY AUTOINCREMENT,
+	broker_name TEXT NOT NULL UNIQUE,
+	columns_json TEXT NOT NULL DEFAULT '[]',
+	created_at TEXT NOT NULL DEFAULT (datetime('now','localtime')),
+	updated_at TEXT NOT NULL DEFAULT (datetime('now','localtime'))
+);
+
 CREATE TABLE IF NOT EXISTS brokers (
 	id INTEGER PRIMARY KEY AUTOINCREMENT,
 	friendly_name TEXT NOT NULL DEFAULT '',
@@ -97,18 +36,16 @@ CREATE TABLE IF NOT EXISTS brokers (
 	message TEXT NOT NULL DEFAULT '',
 	created_at TEXT NOT NULL DEFAULT (datetime('now','localtime')),
 	updated_at TEXT NOT NULL DEFAULT (datetime('now','localtime'))
-)`
+);
 
-const StrategyTypesTableSQL = `
 CREATE TABLE IF NOT EXISTS strategy_types (
 	id INTEGER PRIMARY KEY AUTOINCREMENT,
 	name TEXT NOT NULL,
 	rules_explanation TEXT NOT NULL,
 	created_at TEXT NOT NULL DEFAULT (datetime('now','localtime')),
 	updated_at TEXT NOT NULL DEFAULT (datetime('now','localtime'))
-)`
+);
 
-const StrategiesTableSQL = `
 CREATE TABLE IF NOT EXISTS strategies (
 	id INTEGER PRIMARY KEY AUTOINCREMENT,
 	name TEXT NOT NULL,
@@ -129,9 +66,8 @@ CREATE TABLE IF NOT EXISTS strategies (
 	updated_at TEXT NOT NULL DEFAULT (datetime('now','localtime'))
 );
 CREATE INDEX IF NOT EXISTS idx_strategies_type ON strategies(strategy_type);
-CREATE INDEX IF NOT EXISTS idx_strategies_active ON strategies(is_active);`
+CREATE INDEX IF NOT EXISTS idx_strategies_active ON strategies(is_active);
 
-const StrategyInfoTableSQL = `
 CREATE TABLE IF NOT EXISTS strategy_info (
 	id INTEGER PRIMARY KEY AUTOINCREMENT,
 	strategy_id INTEGER NOT NULL REFERENCES strategies(id) ON DELETE CASCADE,
@@ -139,9 +75,8 @@ CREATE TABLE IF NOT EXISTS strategy_info (
 	created_at TEXT NOT NULL DEFAULT (datetime('now','localtime')),
 	updated_at TEXT NOT NULL DEFAULT (datetime('now','localtime'))
 );
-CREATE INDEX IF NOT EXISTS idx_si_strategy ON strategy_info(strategy_id);`
+CREATE INDEX IF NOT EXISTS idx_si_strategy ON strategy_info(strategy_id);
 
-const StrategyJoinersTableSQL = `
 CREATE TABLE IF NOT EXISTS strategy_joiners (
 	id INTEGER PRIMARY KEY AUTOINCREMENT,
 	broker_id INTEGER NOT NULL REFERENCES brokers(id) ON DELETE CASCADE,
@@ -155,9 +90,8 @@ CREATE TABLE IF NOT EXISTS strategy_joiners (
 	updated_at TEXT NOT NULL DEFAULT (datetime('now','localtime'))
 );
 CREATE INDEX IF NOT EXISTS idx_sj_broker ON strategy_joiners(broker_id);
-CREATE INDEX IF NOT EXISTS idx_sj_strategy ON strategy_joiners(strategy_id);`
+CREATE INDEX IF NOT EXISTS idx_sj_strategy ON strategy_joiners(strategy_id);
 
-const PositionsTableSQL = `
 CREATE TABLE IF NOT EXISTS positions (
 	id INTEGER PRIMARY KEY AUTOINCREMENT,
 	broker_id INTEGER NOT NULL REFERENCES brokers(id),
@@ -185,9 +119,8 @@ CREATE TABLE IF NOT EXISTS positions (
 );
 CREATE INDEX IF NOT EXISTS idx_pos_broker ON positions(broker_id);
 CREATE INDEX IF NOT EXISTS idx_pos_strategy ON positions(strategy_id);
-CREATE INDEX IF NOT EXISTS idx_pos_strategy_type ON positions(strategy_type);`
+CREATE INDEX IF NOT EXISTS idx_pos_strategy_type ON positions(strategy_type);
 
-const StrategyPositionsTableSQL = `
 CREATE TABLE IF NOT EXISTS strategy_positions (
 	id INTEGER PRIMARY KEY AUTOINCREMENT,
 	strategy_id INTEGER NOT NULL REFERENCES strategies(id) ON DELETE CASCADE,
@@ -209,9 +142,8 @@ CREATE TABLE IF NOT EXISTS strategy_positions (
 	created_at TEXT NOT NULL DEFAULT (datetime('now','localtime')),
 	updated_at TEXT NOT NULL DEFAULT (datetime('now','localtime'))
 );
-CREATE INDEX IF NOT EXISTS idx_sp_strategy ON strategy_positions(strategy_id);`
+CREATE INDEX IF NOT EXISTS idx_sp_strategy ON strategy_positions(strategy_id);
 
-const OrdersTableSQL = `
 CREATE TABLE IF NOT EXISTS orders (
 	id INTEGER PRIMARY KEY AUTOINCREMENT,
 	broker_id INTEGER NOT NULL REFERENCES brokers(id),
@@ -243,25 +175,4 @@ CREATE TABLE IF NOT EXISTS orders (
 CREATE INDEX IF NOT EXISTS idx_orders_broker ON orders(broker_id);
 CREATE INDEX IF NOT EXISTS idx_orders_strategy ON orders(strategy_id);
 CREATE INDEX IF NOT EXISTS idx_orders_order_id ON orders(order_id);
-CREATE INDEX IF NOT EXISTS idx_orders_tag ON orders(tag);`
-
-var MarketDDLs = []string{
-	WatchlistsTableSQL,
-	WatchlistItemsTableSQL,
-	WatchlistItemsIdxSQL,
-	MasterContractsTableSQL,
-	SystemSettingsTableSQL,
-}
-
-var TradingDDLs = []string{
-	BrokerColumnsTableSQL,
-	BrokerListTableSQL,
-	BrokersTableSQL,
-	StrategyTypesTableSQL,
-	StrategiesTableSQL,
-	StrategyInfoTableSQL,
-	StrategyJoinersTableSQL,
-	PositionsTableSQL,
-	StrategyPositionsTableSQL,
-	OrdersTableSQL,
-}
+CREATE INDEX IF NOT EXISTS idx_orders_tag ON orders(tag);

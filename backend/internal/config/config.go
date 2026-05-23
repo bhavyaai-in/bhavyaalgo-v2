@@ -8,11 +8,13 @@ import (
 )
 
 type Config struct {
-	AdminEmail    string
-	AdminPassword string
-	Port          string
-	DBPath        string
-	BrokerAPIKey  string
+	AdminEmail     string
+	AdminPassword  string
+	Port           string
+	DBPath         string
+	MarketDBPath   string
+	TradingDBPath  string
+	BrokerAPIKey   string
 }
 
 func Load() (*Config, error) {
@@ -31,6 +33,18 @@ func Load() (*Config, error) {
 	}
 	if cfg.DBPath == "" {
 		cfg.DBPath = "data.db"
+	}
+	if cfg.MarketDBPath == "" {
+		cfg.MarketDBPath = os.Getenv("MARKET_DB_PATH")
+	}
+	if cfg.MarketDBPath == "" {
+		cfg.MarketDBPath = "data-market.db"
+	}
+	if cfg.TradingDBPath == "" {
+		cfg.TradingDBPath = os.Getenv("TRADING_DB_PATH")
+	}
+	if cfg.TradingDBPath == "" {
+		cfg.TradingDBPath = "data-trading.db"
 	}
 	if cfg.AdminEmail == "" || cfg.AdminPassword == "" {
 		return nil, fmt.Errorf("ADMIN_EMAIL and ADMIN_PASSWORD must be set in .env")

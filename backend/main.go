@@ -23,9 +23,9 @@ func main() {
 		logger.Error("config", "error", err)
 		os.Exit(1)
 	}
-	logger.Info("starting server", "port", cfg.Port, "db", cfg.DBPath)
+	logger.Info("starting server", "port", cfg.Port, "market_db", cfg.MarketDBPath, "trading_db", cfg.TradingDBPath)
 
-	database, q, err := internaldb.New(cfg)
+	databases, err := internaldb.New(cfg)
 	if err != nil {
 		logger.Error("db init", "error", err)
 		os.Exit(1)
@@ -35,8 +35,8 @@ func main() {
 	hub := ws.NewHub()
 
 	ctx := context.Background()
-	setup.SeedFromFile(ctx, q)
-	go setup.DownloadMasterContract(ctx, q)
+	setup.SeedFromFile(ctx, databases.TradingQ)
+	go setup.DownloadMasterContract(ctx, databases.MarketQ)
 
 	staticDir := server.FindStaticDir("", os.Getenv("STATIC_DIR"))
 
@@ -47,13 +47,20 @@ func main() {
 		DBPath:        cfg.DBPath,
 		BrokerAPIKey:  cfg.BrokerAPIKey,
 		StaticDir:     staticDir,
-	}, database, q, sessions, hub, logger)
+	}, databases.Market, databases.Trading, databases.MarketQ, databases.TradingQ, sessions, hub, logger)
 	if err != nil {
 		logger.Error("server init", "error", err)
 		os.Exit(1)
 	}
 
-	app := &blueprints.App{DB: database, Q: q, Sessions: sessions, Hub: hub}
+	app := &blueprints.App{
+		MarketDB:  databases.Market,
+		TradingDB: databases.Trading,
+		MarketQ:   databases.MarketQ,
+		TradingQ:  databases.TradingQ,
+		Sessions:  sessions,
+		Hub:       hub,
+	}
 	app.RegisterConnectBrokerRoutes(srv.Mux())
 	app.RegisterBrokerProfileRoutes(srv.Mux())
 	app.RegisterBrokerDataRoutes(srv.Mux())

@@ -1,5 +1,6 @@
 <script setup>
 import { ref, computed, onMounted, onUnmounted, watch } from 'vue'
+import BrokerState from './BrokerState.vue'
 import PositionsTable from './PositionsTable.vue'
 import { useBrokerData } from '../../composables/useBrokerData.js'
 
@@ -32,6 +33,25 @@ const selectedBrokerName = computed(() => {
   
   // Fallback: agar kuch match na ho toh first waala return kare aur safe side id bhi set kar de
   return brokers.value[0].friendly_name || brokers.value[0].broker_name
+})
+
+const stateType = computed(() => {
+  if (loading.value) return 'loading'
+  if (error.value) {
+    if (error.value === 'could not connect broker' || error.value === 'broker token not generated') {
+      return 'disconnected'
+    }
+    return 'error'
+  }
+  if (data.value && data.value.length === 0) return 'empty'
+  return null
+})
+
+const stateMessage = computed(() => {
+  if (loading.value) return 'Loading...'
+  if (error.value) return error.value
+  if (data.value && data.value.length === 0) return 'No positions.'
+  return ''
 })
 
 function toggleDropdown() {
@@ -80,10 +100,8 @@ onUnmounted(() => { window.removeEventListener('click', handleClickOutside) })
       </div>
     </header>
 
-    <div v-if="loading" class="state-msg">Loading...</div>
-    <div v-else-if="error" class="state-msg error">{{ error }}</div>
+    <BrokerState v-if="stateType" :type="stateType" :message="stateMessage" />
     <PositionsTable v-else-if="data && data.length" :items="data" />
-    <div v-else class="state-msg">No positions.</div>
   </div>
 </template>
 

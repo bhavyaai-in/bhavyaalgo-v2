@@ -1,13 +1,12 @@
 package blueprints
 
 import (
-	"context"
 	"encoding/json"
 	"net/http"
 	"sort"
 	"strconv"
 
-	"bhavyaaialgo/backend/db/gen"
+	marketdb "bhavyaaialgo/backend/db/market/gen"
 )
 
 func (a *App) RegisterWatchlistRoutes(mux *http.ServeMux) {
@@ -23,13 +22,13 @@ func (a *App) RegisterWatchlistRoutes(mux *http.ServeMux) {
 }
 
 func (a *App) handleListWatchlists(w http.ResponseWriter, r *http.Request) {
-	list, err := a.Q.ListWatchlists(context.Background())
+	list, err := a.MarketQ.ListWatchlists(r.Context())
 	if err != nil {
 		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
 		return
 	}
 	if list == nil {
-		list = []gen.Watchlist{}
+		list = []marketdb.Watchlist{}
 	}
 	writeJSON(w, http.StatusOK, list)
 }
@@ -43,7 +42,7 @@ func (a *App) handleCreateWatchlist(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "invalid request"})
 		return
 	}
-	id, err := a.Q.CreateWatchlist(context.Background(), gen.CreateWatchlistParams{
+	id, err := a.MarketQ.CreateWatchlist(r.Context(), marketdb.CreateWatchlistParams{
 		Name: req.Name, SortOrder: req.SortOrder,
 	})
 	if err != nil {
@@ -60,25 +59,25 @@ func (a *App) handleUpdateWatchlist(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "invalid request"})
 		return
 	}
-	a.Q.UpdateWatchlist(context.Background(), gen.UpdateWatchlistParams{Name: req.Name, ID: id})
+	a.MarketQ.UpdateWatchlist(r.Context(), marketdb.UpdateWatchlistParams{Name: req.Name, ID: id})
 	writeJSON(w, http.StatusOK, map[string]string{"status": "updated"})
 }
 
 func (a *App) handleDeleteWatchlist(w http.ResponseWriter, r *http.Request) {
 	id, _ := strconv.ParseInt(r.PathValue("id"), 10, 64)
-	a.Q.DeleteWatchlist(context.Background(), id)
+	a.MarketQ.DeleteWatchlist(r.Context(), id)
 	writeJSON(w, http.StatusOK, map[string]string{"status": "deleted"})
 }
 
 func (a *App) handleListItems(w http.ResponseWriter, r *http.Request) {
 	id, _ := strconv.ParseInt(r.PathValue("id"), 10, 64)
-	items, err := a.Q.ListWatchlistItems(context.Background(), id)
+	items, err := a.MarketQ.ListWatchlistItems(r.Context(), id)
 	if err != nil {
 		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
 		return
 	}
 	if items == nil {
-		items = []gen.WatchlistItem{}
+		items = []marketdb.WatchlistItem{}
 	}
 	writeJSON(w, http.StatusOK, items)
 }
@@ -101,7 +100,7 @@ func (a *App) handleAddItem(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "invalid request"})
 		return
 	}
-	existing, _ := a.Q.ListWatchlistItems(context.Background(), watchlistID)
+	existing, _ := a.MarketQ.ListWatchlistItems(r.Context(), watchlistID)
 	for _, item := range existing {
 		if item.Token == req.Token && item.Exchange == req.Exchange {
 			writeJSON(w, http.StatusConflict, map[string]string{"error": "symbol already exists in watchlist"})
@@ -109,7 +108,7 @@ func (a *App) handleAddItem(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 	nextOrder := int64(len(existing))
-	id, err := a.Q.AddWatchlistItem(context.Background(), gen.AddWatchlistItemParams{
+	id, err := a.MarketQ.AddWatchlistItem(r.Context(), marketdb.AddWatchlistItemParams{
 		WatchlistID:    watchlistID,
 		Symbol:         req.Symbol,
 		Brsymbol:       req.Brsymbol,
@@ -132,7 +131,7 @@ func (a *App) handleAddItem(w http.ResponseWriter, r *http.Request) {
 
 func (a *App) handleRemoveItem(w http.ResponseWriter, r *http.Request) {
 	id, _ := strconv.ParseInt(r.PathValue("id"), 10, 64)
-	a.Q.RemoveWatchlistItem(context.Background(), id)
+	a.MarketQ.RemoveWatchlistItem(r.Context(), id)
 	writeJSON(w, http.StatusOK, map[string]string{"status": "deleted"})
 }
 
@@ -143,7 +142,7 @@ func (a *App) handleReorderItem(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "invalid request"})
 		return
 	}
-	a.Q.ReorderWatchlistItem(context.Background(), gen.ReorderWatchlistItemParams{
+	a.MarketQ.ReorderWatchlistItem(r.Context(), marketdb.ReorderWatchlistItemParams{
 		SortOrder: req.SortOrder, ID: id,
 	})
 	writeJSON(w, http.StatusOK, map[string]string{"status": "ok"})
@@ -156,7 +155,7 @@ func (a *App) handleSearchContracts(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	pattern := "%" + q + "%"
-	results, err := a.Q.SearchMasterContract(context.Background(), gen.SearchMasterContractParams{
+	results, err := a.MarketQ.SearchMasterContract(r.Context(), marketdb.SearchMasterContractParams{
 		Symbol: pattern, Brsymbol: pattern, Name: pattern,
 	})
 	if err != nil {
@@ -164,7 +163,7 @@ func (a *App) handleSearchContracts(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if results == nil {
-		results = []gen.MasterContract{}
+		results = []marketdb.MasterContract{}
 	}
 	sortSearchResults(results)
 	writeJSON(w, http.StatusOK, results)
@@ -180,7 +179,7 @@ var instOrder = map[string]int{
 	"CE": 3, "PE": 3,
 }
 
-func sortSearchResults(results []gen.MasterContract) {
+func sortSearchResults(results []marketdb.MasterContract) {
 	sort.SliceStable(results, func(i, j int) bool {
 		ei := exchangeOrder[results[i].Exchange]
 		if ei == 0 {

@@ -7,7 +7,8 @@ import (
 	"net/http"
 	"runtime/debug"
 
-	"bhavyaaialgo/backend/db/gen"
+	marketdb "bhavyaaialgo/backend/db/market/gen"
+	tradingdb "bhavyaaialgo/backend/db/trading/gen"
 	"bhavyaaialgo/backend/internal/httperr"
 	"bhavyaaialgo/backend/ws"
 )
@@ -17,10 +18,12 @@ type SessionStore interface {
 }
 
 type App struct {
-	DB       *sql.DB
-	Q        *gen.Queries
-	Sessions SessionStore
-	Hub      *ws.Hub
+	MarketDB  *sql.DB
+	TradingDB *sql.DB
+	MarketQ   *marketdb.Queries
+	TradingQ  *tradingdb.Queries
+	Sessions  SessionStore
+	Hub       *ws.Hub
 }
 
 func writeJSON(w http.ResponseWriter, status int, v any) {

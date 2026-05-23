@@ -14,7 +14,8 @@ import (
 	"time"
 
 	"bhavyaaialgo/backend/brokers/aliceblue"
-	"bhavyaaialgo/backend/db/gen"
+	marketdb "bhavyaaialgo/backend/db/market/gen"
+	tradingdb "bhavyaaialgo/backend/db/trading/gen"
 	internaldb "bhavyaaialgo/backend/internal/db"
 	"bhavyaaialgo/backend/ws"
 
@@ -23,19 +24,21 @@ import (
 )
 
 type Server struct {
-	DB                *sql.DB
-	Q                 *gen.Queries
-	Sessions          SessionStore
-	Hub               *ws.Hub
-	Upgrader          websocket.Upgrader
-	Config            *Config
-	adminPasswordHash []byte
-	logger            *slog.Logger
-	mux               *http.ServeMux
-	httpServer        *http.Server
-	rateLimiters      map[string]*rateLimiter
-	rateLimitMu       sync.Mutex
-	done              chan struct{}
+	MarketDB           *sql.DB
+	TradingDB          *sql.DB
+	MarketQ            *marketdb.Queries
+	TradingQ           *tradingdb.Queries
+	Sessions           SessionStore
+	Hub                *ws.Hub
+	Upgrader           websocket.Upgrader
+	Config             *Config
+	adminPasswordHash  []byte
+	logger             *slog.Logger
+	mux                *http.ServeMux
+	httpServer         *http.Server
+	rateLimiters       map[string]*rateLimiter
+	rateLimitMu        sync.Mutex
+	done               chan struct{}
 }
 
 type Config struct {
@@ -47,7 +50,7 @@ type Config struct {
 	StaticDir     string
 }
 
-func New(cfg *Config, database *sql.DB, q *gen.Queries, sessions SessionStore, hub *ws.Hub, logger *slog.Logger) (*Server, error) {
+func New(cfg *Config, marketDB *sql.DB, tradingDB *sql.DB, marketQ *marketdb.Queries, tradingQ *tradingdb.Queries, sessions SessionStore, hub *ws.Hub, logger *slog.Logger) (*Server, error) {
 	passwordHash, err := bcrypt.GenerateFromPassword([]byte(cfg.AdminPassword), bcrypt.DefaultCost)
 	if err != nil {
 		return nil, err
@@ -58,8 +61,10 @@ func New(cfg *Config, database *sql.DB, q *gen.Queries, sessions SessionStore, h
 	}
 
 	s := &Server{
-		DB:                database,
-		Q:                 q,
+		MarketDB:          marketDB,
+		TradingDB:         tradingDB,
+		MarketQ:           marketQ,
+		TradingQ:          tradingQ,
 		Sessions:          sessions,
 		Hub:               hub,
 		Upgrader:          upgrader,
@@ -109,9 +114,6 @@ func (s *Server) registerStaticRoutes(mux *http.ServeMux) {
 	}
 	fs := http.FileServer(http.Dir(s.Config.StaticDir))
 	mux.Handle("GET /assets/*", fs)
-	mux.HandleFunc("GET /", func(w http.ResponseWriter, r *http.Request) {
-		http.ServeFile(w, r, filepath.Join(s.Config.StaticDir, "index.html"))
-	})
 	mux.HandleFunc("GET /{path...}", func(w http.ResponseWriter, r *http.Request) {
 		http.ServeFile(w, r, filepath.Join(s.Config.StaticDir, "index.html"))
 	})
@@ -133,7 +135,11 @@ func (s *Server) handleHealthz(w http.ResponseWriter, r *http.Request) {
 func (s *Server) handleReadyz(w http.ResponseWriter, r *http.Request) {
 	ctx, cancel := context.WithTimeout(r.Context(), 2*time.Second)
 	defer cancel()
-	if err := s.DB.PingContext(ctx); err != nil {
+	if err := s.MarketDB.PingContext(ctx); err != nil {
+		writeError(w, http.StatusServiceUnavailable, "not ready")
+		return
+	}
+	if err := s.TradingDB.PingContext(ctx); err != nil {
 		writeError(w, http.StatusServiceUnavailable, "not ready")
 		return
 	}
@@ -176,9 +182,11 @@ func (s *Server) Run() error {
 		return err
 	}
 
-	if err := s.DB.Close(); err != nil {
-		s.logger.Error("db close error", "error", err)
-		return err
+	if err := s.MarketDB.Close(); err != nil {
+		s.logger.Error("market db close error", "error", err)
+	}
+	if err := s.TradingDB.Close(); err != nil {
+		s.logger.Error("trading db close error", "error", err)
 	}
 
 	close(s.done)
@@ -197,15 +205,15 @@ func (s *Server) autoStartBrokerStream(ctx context.Context) {
 		}
 	}()
 
-	tokenSymbol := internaldb.LoadTokenSymbolMap(ctx, s.DB)
-	symbols := internaldb.LoadWatchlistSymbols(ctx, s.DB)
+	tokenSymbol := internaldb.LoadTokenSymbolMap(ctx, s.MarketDB)
+	symbols := internaldb.LoadWatchlistSymbols(ctx, s.MarketDB)
 
 	var aliceClientID, aliceSession, angelClient, angelAuth, angelFeed, angelKey string
 
-	s.DB.QueryRowContext(ctx,
+	s.TradingDB.QueryRowContext(ctx,
 		`SELECT broker_userid, broker_token FROM brokers WHERE broker_name='aliceblue' AND token_status='connected' AND DATE(broker_token_date) = DATE('now') LIMIT 1`,
 	).Scan(&aliceClientID, &aliceSession)
-	s.DB.QueryRowContext(ctx,
+	s.TradingDB.QueryRowContext(ctx,
 		`SELECT broker_userid, broker_token, feed_token, broker_api FROM brokers WHERE broker_name='angel' AND token_status='connected' AND DATE(broker_token_date) = DATE('now') LIMIT 1`,
 	).Scan(&angelClient, &angelAuth, &angelFeed, &angelKey)
 

@@ -1,5 +1,6 @@
 <script setup>
 import { ref, computed, onMounted, onUnmounted, watch } from 'vue'
+import BrokerState from './BrokerState.vue'
 import { useBrokerData } from '../../composables/useBrokerData.js'
 
 const props = defineProps({ data: null, broker: null })
@@ -31,6 +32,23 @@ const selectedBrokerName = computed(() => {
   
   // Fallback: agar kuch match na ho toh first waala return kare aur safe side id bhi set kar de
   return brokers.value[0].friendly_name || brokers.value[0].broker_name
+})
+
+const stateType = computed(() => {
+  if (loading.value) return 'loading'
+  if (error.value) {
+    if (error.value === 'could not connect broker' || error.value === 'broker token not generated') {
+      return 'disconnected'
+    }
+    return 'error'
+  }
+  return null
+})
+
+const stateMessage = computed(() => {
+  if (loading.value) return 'Loading...'
+  if (error.value) return error.value
+  return ''
 })
 
 function toggleDropdown() {
@@ -81,14 +99,13 @@ function cap(str) { if (!str) return ''; return str.replace(/\b\w/g, c => c.toUp
       </div>
     </header>
 
-    <div v-if="loading" class="state-msg">Loading...</div>
-    <div v-else-if="error" class="state-msg error">{{ error }}</div>
+    <BrokerState v-if="loading || error" :type="stateType" :message="stateMessage" />
     <div v-else-if="data" class="table-wrap">
       <table class="data-table kv">
         <tr v-for="(v,k) in data" :key="k"><td class="pkey">{{ cap(k.replace(/_/g,' ')) }}</td><td>{{ v }}</td></tr>
       </table>
     </div>
-    <div v-else class="state-msg">No margin data.</div>
+    <BrokerState v-else type="empty" message="No margin data." />
   </div>
 </template>
 

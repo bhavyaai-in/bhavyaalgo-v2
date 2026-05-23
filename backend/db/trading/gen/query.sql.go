@@ -3,99 +3,12 @@
 //   sqlc v1.31.1
 // source: query.sql
 
-package gen
+package tradingdb
 
 import (
 	"context"
 	"database/sql"
 )
-
-const addWatchlistItem = `-- name: AddWatchlistItem :one
-INSERT INTO watchlist_items (watchlist_id, symbol, brsymbol, name, exchange, token, expiry, strike, lotsize, instrumenttype, tick_size, sort_order)
-VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) RETURNING id
-`
-
-type AddWatchlistItemParams struct {
-	WatchlistID    int64   `json:"watchlist_id"`
-	Symbol         string  `json:"symbol"`
-	Brsymbol       string  `json:"brsymbol"`
-	Name           string  `json:"name"`
-	Exchange       string  `json:"exchange"`
-	Token          string  `json:"token"`
-	Expiry         string  `json:"expiry"`
-	Strike         float64 `json:"strike"`
-	Lotsize        int64   `json:"lotsize"`
-	Instrumenttype string  `json:"instrumenttype"`
-	TickSize       float64 `json:"tick_size"`
-	SortOrder      int64   `json:"sort_order"`
-}
-
-func (q *Queries) AddWatchlistItem(ctx context.Context, arg AddWatchlistItemParams) (int64, error) {
-	row := q.db.QueryRowContext(ctx, addWatchlistItem,
-		arg.WatchlistID,
-		arg.Symbol,
-		arg.Brsymbol,
-		arg.Name,
-		arg.Exchange,
-		arg.Token,
-		arg.Expiry,
-		arg.Strike,
-		arg.Lotsize,
-		arg.Instrumenttype,
-		arg.TickSize,
-		arg.SortOrder,
-	)
-	var id int64
-	err := row.Scan(&id)
-	return id, err
-}
-
-const bulkInsertMasterContract = `-- name: BulkInsertMasterContract :exec
-INSERT INTO master_contracts (symbol, brsymbol, name, exchange, brexchange, token, expiry, strike, lotsize, instrumenttype, tick_size, broker_name)
-VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-`
-
-type BulkInsertMasterContractParams struct {
-	Symbol         string  `json:"symbol"`
-	Brsymbol       string  `json:"brsymbol"`
-	Name           string  `json:"name"`
-	Exchange       string  `json:"exchange"`
-	Brexchange     string  `json:"brexchange"`
-	Token          string  `json:"token"`
-	Expiry         string  `json:"expiry"`
-	Strike         float64 `json:"strike"`
-	Lotsize        int64   `json:"lotsize"`
-	Instrumenttype string  `json:"instrumenttype"`
-	TickSize       float64 `json:"tick_size"`
-	BrokerName     string  `json:"broker_name"`
-}
-
-func (q *Queries) BulkInsertMasterContract(ctx context.Context, arg BulkInsertMasterContractParams) error {
-	_, err := q.db.ExecContext(ctx, bulkInsertMasterContract,
-		arg.Symbol,
-		arg.Brsymbol,
-		arg.Name,
-		arg.Exchange,
-		arg.Brexchange,
-		arg.Token,
-		arg.Expiry,
-		arg.Strike,
-		arg.Lotsize,
-		arg.Instrumenttype,
-		arg.TickSize,
-		arg.BrokerName,
-	)
-	return err
-}
-
-const clearBrokerContracts = `-- name: ClearBrokerContracts :exec
-DELETE FROM master_contracts WHERE broker_name=?
-`
-
-func (q *Queries) ClearBrokerContracts(ctx context.Context, brokerName string) error {
-	_, err := q.db.ExecContext(ctx, clearBrokerContracts, brokerName)
-	return err
-}
 
 const createBroker = `-- name: CreateBroker :one
 INSERT INTO brokers (
@@ -424,22 +337,6 @@ func (q *Queries) CreateStrategyType(ctx context.Context, arg CreateStrategyType
 	return id, err
 }
 
-const createWatchlist = `-- name: CreateWatchlist :one
-INSERT INTO watchlists (name, sort_order) VALUES (?, ?) RETURNING id
-`
-
-type CreateWatchlistParams struct {
-	Name      string `json:"name"`
-	SortOrder int64  `json:"sort_order"`
-}
-
-func (q *Queries) CreateWatchlist(ctx context.Context, arg CreateWatchlistParams) (int64, error) {
-	row := q.db.QueryRowContext(ctx, createWatchlist, arg.Name, arg.SortOrder)
-	var id int64
-	err := row.Scan(&id)
-	return id, err
-}
-
 const deleteBroker = `-- name: DeleteBroker :exec
 DELETE FROM brokers WHERE id=?
 `
@@ -482,15 +379,6 @@ DELETE FROM strategy_types WHERE id=?
 
 func (q *Queries) DeleteStrategyType(ctx context.Context, id int64) error {
 	_, err := q.db.ExecContext(ctx, deleteStrategyType, id)
-	return err
-}
-
-const deleteWatchlist = `-- name: DeleteWatchlist :exec
-DELETE FROM watchlists WHERE id=?
-`
-
-func (q *Queries) DeleteWatchlist(ctx context.Context, id int64) error {
-	_, err := q.db.ExecContext(ctx, deleteWatchlist, id)
 	return err
 }
 
@@ -680,17 +568,6 @@ func (q *Queries) GetBrokerToken(ctx context.Context, id int64) (GetBrokerTokenR
 	return i, err
 }
 
-const getMasterContractCount = `-- name: GetMasterContractCount :one
-SELECT COUNT(*) FROM master_contracts
-`
-
-func (q *Queries) GetMasterContractCount(ctx context.Context) (int64, error) {
-	row := q.db.QueryRowContext(ctx, getMasterContractCount)
-	var count int64
-	err := row.Scan(&count)
-	return count, err
-}
-
 const getOrder = `-- name: GetOrder :one
 SELECT id, broker_id, strategy_id, position_id, order_id, status_message, tag, variety, tradingsymbol, exchange, instrument_token, broker_instrument_token, transaction_type, product, order_type, validity, status, quantity, price, trigger_price, average_price, filled_quantity, pending_quantity, cancelled_quantity, created_at, updated_at FROM orders WHERE id=?
 `
@@ -835,17 +712,6 @@ func (q *Queries) GetPositionByEntryOrder(ctx context.Context, entryOrderID sql.
 		&i.UpdatedAt,
 	)
 	return i, err
-}
-
-const getSetting = `-- name: GetSetting :one
-SELECT value FROM system_settings WHERE key=?
-`
-
-func (q *Queries) GetSetting(ctx context.Context, key string) (string, error) {
-	row := q.db.QueryRowContext(ctx, getSetting, key)
-	var value string
-	err := row.Scan(&value)
-	return value, err
 }
 
 const getStrategy = `-- name: GetStrategy :one
@@ -1449,38 +1315,6 @@ func (q *Queries) ListPositionsByStrategy(ctx context.Context, strategyID sql.Nu
 	return items, nil
 }
 
-const listSettings = `-- name: ListSettings :many
-SELECT key, value FROM system_settings ORDER BY key
-`
-
-type ListSettingsRow struct {
-	Key   string `json:"key"`
-	Value string `json:"value"`
-}
-
-func (q *Queries) ListSettings(ctx context.Context) ([]ListSettingsRow, error) {
-	rows, err := q.db.QueryContext(ctx, listSettings)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	var items []ListSettingsRow
-	for rows.Next() {
-		var i ListSettingsRow
-		if err := rows.Scan(&i.Key, &i.Value); err != nil {
-			return nil, err
-		}
-		items = append(items, i)
-	}
-	if err := rows.Close(); err != nil {
-		return nil, err
-	}
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-	return items, nil
-}
-
 const listStrategies = `-- name: ListStrategies :many
 SELECT id, name, strategy_secret_key, strategy_type, position_status, instrument_token, exchange, side, atm_otm, image_url, color, is_active, is_locked, message, expiry_date, created_at, updated_at FROM strategies ORDER BY name
 `
@@ -1663,168 +1497,6 @@ func (q *Queries) ListStrategyTypes(ctx context.Context) ([]StrategyType, error)
 			&i.RulesExplanation,
 			&i.CreatedAt,
 			&i.UpdatedAt,
-		); err != nil {
-			return nil, err
-		}
-		items = append(items, i)
-	}
-	if err := rows.Close(); err != nil {
-		return nil, err
-	}
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-	return items, nil
-}
-
-const listWatchlistItems = `-- name: ListWatchlistItems :many
-SELECT id, watchlist_id, symbol, brsymbol, name, exchange, token, expiry, strike, lotsize, instrumenttype, tick_size, sort_order, created_at FROM watchlist_items WHERE watchlist_id=? ORDER BY sort_order, id
-`
-
-func (q *Queries) ListWatchlistItems(ctx context.Context, watchlistID int64) ([]WatchlistItem, error) {
-	rows, err := q.db.QueryContext(ctx, listWatchlistItems, watchlistID)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	var items []WatchlistItem
-	for rows.Next() {
-		var i WatchlistItem
-		if err := rows.Scan(
-			&i.ID,
-			&i.WatchlistID,
-			&i.Symbol,
-			&i.Brsymbol,
-			&i.Name,
-			&i.Exchange,
-			&i.Token,
-			&i.Expiry,
-			&i.Strike,
-			&i.Lotsize,
-			&i.Instrumenttype,
-			&i.TickSize,
-			&i.SortOrder,
-			&i.CreatedAt,
-		); err != nil {
-			return nil, err
-		}
-		items = append(items, i)
-	}
-	if err := rows.Close(); err != nil {
-		return nil, err
-	}
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-	return items, nil
-}
-
-const listWatchlists = `-- name: ListWatchlists :many
-SELECT id, name, sort_order, created_at, updated_at FROM watchlists ORDER BY sort_order, id
-`
-
-func (q *Queries) ListWatchlists(ctx context.Context) ([]Watchlist, error) {
-	rows, err := q.db.QueryContext(ctx, listWatchlists)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	var items []Watchlist
-	for rows.Next() {
-		var i Watchlist
-		if err := rows.Scan(
-			&i.ID,
-			&i.Name,
-			&i.SortOrder,
-			&i.CreatedAt,
-			&i.UpdatedAt,
-		); err != nil {
-			return nil, err
-		}
-		items = append(items, i)
-	}
-	if err := rows.Close(); err != nil {
-		return nil, err
-	}
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-	return items, nil
-}
-
-const removeWatchlistItem = `-- name: RemoveWatchlistItem :exec
-DELETE FROM watchlist_items WHERE id=?
-`
-
-func (q *Queries) RemoveWatchlistItem(ctx context.Context, id int64) error {
-	_, err := q.db.ExecContext(ctx, removeWatchlistItem, id)
-	return err
-}
-
-const reorderWatchlistItem = `-- name: ReorderWatchlistItem :exec
-UPDATE watchlist_items SET sort_order=? WHERE id=?
-`
-
-type ReorderWatchlistItemParams struct {
-	SortOrder int64 `json:"sort_order"`
-	ID        int64 `json:"id"`
-}
-
-func (q *Queries) ReorderWatchlistItem(ctx context.Context, arg ReorderWatchlistItemParams) error {
-	_, err := q.db.ExecContext(ctx, reorderWatchlistItem, arg.SortOrder, arg.ID)
-	return err
-}
-
-const reorderWatchlistItems = `-- name: ReorderWatchlistItems :exec
-UPDATE watchlist_items SET sort_order=? WHERE watchlist_id=? AND id=?
-`
-
-type ReorderWatchlistItemsParams struct {
-	SortOrder   int64 `json:"sort_order"`
-	WatchlistID int64 `json:"watchlist_id"`
-	ID          int64 `json:"id"`
-}
-
-func (q *Queries) ReorderWatchlistItems(ctx context.Context, arg ReorderWatchlistItemsParams) error {
-	_, err := q.db.ExecContext(ctx, reorderWatchlistItems, arg.SortOrder, arg.WatchlistID, arg.ID)
-	return err
-}
-
-const searchMasterContract = `-- name: SearchMasterContract :many
-SELECT id, symbol, brsymbol, name, exchange, brexchange, token, expiry, strike, lotsize, instrumenttype, tick_size, created_at FROM master_contracts
-WHERE symbol LIKE ? OR brsymbol LIKE ? OR name LIKE ?
-ORDER BY symbol LIMIT 50
-`
-
-type SearchMasterContractParams struct {
-	Symbol   string `json:"symbol"`
-	Brsymbol string `json:"brsymbol"`
-	Name     string `json:"name"`
-}
-
-func (q *Queries) SearchMasterContract(ctx context.Context, arg SearchMasterContractParams) ([]MasterContract, error) {
-	rows, err := q.db.QueryContext(ctx, searchMasterContract, arg.Symbol, arg.Brsymbol, arg.Name)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	var items []MasterContract
-	for rows.Next() {
-		var i MasterContract
-		if err := rows.Scan(
-			&i.ID,
-			&i.Symbol,
-			&i.Brsymbol,
-			&i.Name,
-			&i.Exchange,
-			&i.Brexchange,
-			&i.Token,
-			&i.Expiry,
-			&i.Strike,
-			&i.Lotsize,
-			&i.Instrumenttype,
-			&i.TickSize,
-			&i.CreatedAt,
 		); err != nil {
 			return nil, err
 		}
@@ -2157,20 +1829,6 @@ func (q *Queries) UpdateStrategyType(ctx context.Context, arg UpdateStrategyType
 	return err
 }
 
-const updateWatchlist = `-- name: UpdateWatchlist :exec
-UPDATE watchlists SET name=?, updated_at=datetime('now','localtime') WHERE id=?
-`
-
-type UpdateWatchlistParams struct {
-	Name string `json:"name"`
-	ID   int64  `json:"id"`
-}
-
-func (q *Queries) UpdateWatchlist(ctx context.Context, arg UpdateWatchlistParams) error {
-	_, err := q.db.ExecContext(ctx, updateWatchlist, arg.Name, arg.ID)
-	return err
-}
-
 const upsertBrokerColumn = `-- name: UpsertBrokerColumn :exec
 INSERT INTO broker_columns (broker_name, columns_json) VALUES (?, ?)
 ON CONFLICT(broker_name) DO UPDATE SET columns_json=excluded.columns_json, updated_at=datetime('now','localtime')
@@ -2183,20 +1841,5 @@ type UpsertBrokerColumnParams struct {
 
 func (q *Queries) UpsertBrokerColumn(ctx context.Context, arg UpsertBrokerColumnParams) error {
 	_, err := q.db.ExecContext(ctx, upsertBrokerColumn, arg.BrokerName, arg.ColumnsJson)
-	return err
-}
-
-const upsertSetting = `-- name: UpsertSetting :exec
-INSERT INTO system_settings (key, value) VALUES (?, ?)
-ON CONFLICT(key) DO UPDATE SET value=excluded.value, updated_at=datetime('now','localtime')
-`
-
-type UpsertSettingParams struct {
-	Key   string `json:"key"`
-	Value string `json:"value"`
-}
-
-func (q *Queries) UpsertSetting(ctx context.Context, arg UpsertSettingParams) error {
-	_, err := q.db.ExecContext(ctx, upsertSetting, arg.Key, arg.Value)
 	return err
 }

@@ -1,12 +1,23 @@
 version: "2"
 sql:
   - engine: "sqlite"
-    schema: "db/schema.sql"
-    queries: "db/query.sql"
+    schema: "db/market/schema.sql"
+    queries: "db/market/query.sql"
     gen:
       go:
-        package: "gen"
-        out: "db/gen"
+        package: "marketdb"
+        out: "db/market/gen"
+        emit_json_tags: true
+        emit_prepared_queries: false
+        emit_interface: true
+        emit_exact_table_names: false
+  - engine: "sqlite"
+    schema: "db/trading/schema.sql"
+    queries: "db/trading/query.sql"
+    gen:
+      go:
+        package: "tradingdb"
+        out: "db/trading/gen"
         emit_json_tags: true
         emit_prepared_queries: false
         emit_interface: true

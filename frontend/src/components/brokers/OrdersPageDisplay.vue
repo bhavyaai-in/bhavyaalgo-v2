@@ -4,6 +4,7 @@ import { api, confirm } from '../../utils/api.js'
 import { useBrokerDataStore } from '../../stores/brokerData.js'
 import { useBrokerData } from '../../composables/useBrokerData.js'
 import OrdersTable from './OrdersTable.vue'
+import BrokerState from './BrokerState.vue'
 
 const props = defineProps({ data: null, broker: null })
 const { brokers, selectedId, data, loading, error } = useBrokerData(props, 'orders')
@@ -35,6 +36,25 @@ const selectedBrokerName = computed(() => {
   }
   
   return brokers.value[0].friendly_name || brokers.value[0].broker_name
+})
+
+const stateType = computed(() => {
+  if (loading.value) return 'loading'
+  if (error.value) {
+    if (error.value === 'could not connect broker' || error.value === 'broker token not generated') {
+      return 'disconnected'
+    }
+    return 'error'
+  }
+  if (data.value && data.value.length === 0) return 'empty'
+  return null
+})
+
+const stateMessage = computed(() => {
+  if (loading.value) return 'Loading...'
+  if (error.value) return error.value
+  if (data.value && data.value.length === 0) return 'No orders.'
+  return ''
 })
 
 function toggleDropdown() {
@@ -117,10 +137,8 @@ async function cancelOrder(o) {
       </div>
     </header>
 
-    <div v-if="loading" class="state-msg">Loading...</div>
-    <div v-else-if="error" class="state-msg error">{{ error }}</div>
+    <BrokerState v-if="stateType" :type="stateType" :message="stateMessage" />
     <OrdersTable v-else-if="data && data.length" :items="data" :canAct="canAct" @cancel="cancelOrder" @edit="openEdit" />
-    <div v-else class="state-msg">No orders.</div>
   </div>
 
   <div v-if="editing" class="modal-overlay" @click.self="closeEdit">

@@ -11,7 +11,6 @@ import (
 	"strings"
 	"sync"
 	"time"
-	"fmt"
 
 	"github.com/gorilla/websocket"
 )
@@ -22,7 +21,6 @@ type AliceBrokerClient struct {
 	sessionToken        string
 	clientID            string
 	hub                 *Hub
-	tokenSymbol         map[string]string
 	conn                *websocket.Conn
 	mu                  sync.Mutex
 	writeMu             sync.Mutex
@@ -34,7 +32,106 @@ type AliceBrokerClient struct {
 	reconnectMaxRetries int
 	reconnectMaxDelay   time.Duration
 	connectTimeout      time.Duration
-	closeCache          map[string]float64
+	parser              AliceJSONParser
+}
+
+type AliceJSONParser struct {
+	Hub        *Hub
+	CloseCache map[string]float64
+	TokenSymbol map[string]string
+}
+
+func (bp *AliceJSONParser) HandleIncomingStream(msg []byte) {
+	tick, ok := bp.parseTick(msg)
+	if !ok {
+		return
+	}
+	payload, err := json.Marshal(map[string]any{
+		"type": "tick",
+		"data": tick,
+	})
+	if err != nil {
+		return
+	}
+	bp.Hub.BroadcastPreEncodedTick(tick.Token, payload)
+}
+
+func (bp *AliceJSONParser) parseTick(msg []byte) (Tick, bool) {
+	var raw map[string]any
+	if err := json.Unmarshal(msg, &raw); err != nil {
+		return Tick{}, false
+	}
+
+	t, _ := raw["t"].(string)
+	if t != "tk" && t != "tf" {
+		return Tick{}, false
+	}
+
+	token, _ := raw["tk"].(string)
+	if token == "" {
+		return Tick{}, false
+	}
+
+	var tick Tick
+	tick.Token = token
+
+	if e, ok := raw["e"].(string); ok {
+		tick.ExchangeType = mapExchange(e)
+	}
+
+	if sym, ok := bp.TokenSymbol[token]; ok {
+		tick.Symbol = sym
+	}
+	if len(token) >= 3 && token[:2] == "26" {
+		tick.Token999 = "999" + token
+	}
+
+	lp := parseAnyFloat(raw["lp"])
+	if lp <= 0 {
+		return Tick{}, false
+	}
+
+	if t == "tk" {
+		closeVal := parseAnyFloat(raw["c"])
+		if closeVal > 0 {
+			bp.CloseCache[token] = closeVal
+		}
+		if lp > 0 && closeVal > 0 {
+			tick.Change = lp - closeVal
+			tick.Close = closeVal
+		}
+		tick.LTP = lp
+
+		if o, ok := raw["o"]; ok {
+			tick.Open = parseAnyFloat(o)
+		}
+		if h, ok := raw["h"]; ok {
+			tick.High = parseAnyFloat(h)
+		}
+		if l, ok := raw["l"]; ok {
+			tick.Low = parseAnyFloat(l)
+		}
+		if v, ok := raw["v"].(string); ok && v != "" {
+			tick.Volume = parseInt64Str(v)
+		}
+		if oi, ok := raw["oi"].(string); ok && oi != "" {
+			tick.OI = parseInt64Str(oi)
+		}
+	} else {
+		tick.LTP = lp
+		if closeVal, ok := bp.CloseCache[token]; ok && closeVal > 0 && lp > 0 {
+			tick.Change = lp - closeVal
+			tick.Close = closeVal
+		}
+		if pc, ok := raw["pc"].(string); ok && pc != "" && lp > 0 {
+			pcVal := parseFloatStr(pc)
+			if tick.Change == 0 && pcVal != 0 {
+				tick.Change = lp * pcVal / (100 + pcVal)
+			}
+		}
+	}
+
+	return tick, true
 }
 
 func NewAliceBrokerClient(sessionToken, clientID string, hub *Hub, tokenSymbol map[string]string) *AliceBrokerClient {
@@ -42,12 +139,15 @@ func NewAliceBrokerClient(sessionToken, clientID string, hub *Hub, tokenSymbol m
 		sessionToken:        sessionToken,
 		clientID:            clientID,
 		hub:                 hub,
-		tokenSymbol:         tokenSymbol,
-		closeCache:          make(map[string]float64),
 		stopCh:              make(chan struct{}),
 		reconnectMaxRetries: 300,
 		reconnectMaxDelay:   60 * time.Second,
 		connectTimeout:      7 * time.Second,
+		parser: AliceJSONParser{
+			Hub:         hub,
+			CloseCache:  make(map[string]float64),
+			TokenSymbol: tokenSymbol,
+		},
 	}
 }
 
@@ -221,10 +321,7 @@ func (b *AliceBrokerClient) readLoop() {
 			}
 			return
 		}
-		tick := b.parseAliceTick(msg)
-		if tick != nil {
-			b.hub.BroadcastTick(tick)
-		}
+		b.parser.HandleIncomingStream(msg)
 	}
 }
 
@@ -251,7 +348,6 @@ func (b *AliceBrokerClient) sendSubscribe(symbols []string) {
 		parts = append(parts, sym)
 	}
 	k := strings.Join(parts, "#")
-	fmt.Printf("alice broker: subscribing to symbols: %v (mapped: %s)\n", symbols, k)
 	msg := map[string]string{"k": k, "t": "t"}
 	body, _ := json.Marshal(msg)
 	b.writeMu.Lock()
@@ -308,93 +404,6 @@ func computeAliceSuberToken(sessionToken string) string {
 	h1hex := hex.EncodeToString(h1[:])
 	h2 := sha256.Sum256([]byte(h1hex))
 	return hex.EncodeToString(h2[:])
-}
-
-func (b *AliceBrokerClient) parseAliceTick(msg []byte) map[string]any {
-	var raw map[string]any
-	if err := json.Unmarshal(msg, &raw); err != nil {
-		return nil
-	}
-
-	t, _ := raw["t"].(string)
-	if t != "tk" && t != "tf" {
-		return nil
-	}
-
-	token, _ := raw["tk"].(string)
-	if token == "" {
-		return nil
-	}
-
-	tick := map[string]any{"token": token}
-
-	var exch string
-	if e, ok := raw["e"].(string); ok {
-		exch = e
-		tick["exchange"] = e
-		tick["exchangeType"] = mapExchange(e)
-	}
-
-	if sym, ok := b.tokenSymbol[exch+"|"+token]; ok {
-		tick["symbol"] = sym
-	}
-	if len(token) >= 3 && token[:2] == "26" {
-		tick["token_999"] = "999" + token
-	}
-
-	lp := parseAnyFloat(raw["lp"])
-	if lp <= 0 {
-		return nil
-	}
-
-	if t == "tk" {
-		closeVal := parseAnyFloat(raw["c"])
-		if closeVal > 0 {
-			b.closeCache[token] = closeVal
-		}
-		if lp > 0 && closeVal > 0 {
-			tick["change"] = lp - closeVal
-			tick["close"] = closeVal
-		}
-		tick["ltp"] = lp
-
-		if o, ok := raw["o"]; ok {
-			tick["open"] = parseAnyFloat(o)
-		}
-		if h, ok := raw["h"]; ok {
-			tick["high"] = parseAnyFloat(h)
-		}
-		if l, ok := raw["l"]; ok {
-			tick["low"] = parseAnyFloat(l)
-		}
-		if v, ok := raw["v"].(string); ok && v != "" {
-			tick["volume"] = parseInt64Str(v)
-		}
-		if oi, ok := raw["oi"].(string); ok && oi != "" {
-			tick["oi"] = parseInt64Str(oi)
-		}
-	} else {
-		tick["ltp"] = lp
-		if closeVal, ok := b.closeCache[token]; ok && closeVal > 0 && lp > 0 {
-			tick["change"] = lp - closeVal
-			tick["close"] = closeVal
-		}
-		if pc, ok := raw["pc"].(string); ok && pc != "" && lp > 0 {
-			pcVal := parseFloatStr(pc)
-			if _, exists := tick["change"]; !exists && pcVal != 0 {
-				tick["change"] = lp * pcVal / (100 + pcVal)
-			}
-		}
-	}
-
-if ap, ok := raw["ap"]; ok {
-		tick["average"] = parseAnyFloat(ap)
-	}
-	if ft, ok := raw["ft"].(string); ok && ft != "" {
-		tick["feedTime"] = ft
-	}
-	fmt.Printf("alice broker: parsed tick: %v\n", tick)
-	return tick
 }
 
 func mapExchange(e string) int {

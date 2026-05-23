@@ -3,7 +3,7 @@ package blueprints
 import (
 	"net/http"
 
-	"bhavyaaialgo/backend/db/gen"
+	marketdb "bhavyaaialgo/backend/db/market/gen"
 )
 
 func (a *App) RegisterSettingsRoutes(mux *http.ServeMux) {
@@ -17,13 +17,13 @@ type settingRow struct {
 }
 
 func (a *App) handleListSettings(w http.ResponseWriter, r *http.Request) {
-	list, err := a.Q.ListSettings(r.Context())
+	list, err := a.MarketQ.ListSettings(r.Context())
 	if err != nil {
 		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
 		return
 	}
 	if list == nil {
-		list = []gen.ListSettingsRow{}
+		list = []marketdb.ListSettingsRow{}
 	}
 	writeJSON(w, http.StatusOK, list)
 }
@@ -38,7 +38,7 @@ func (a *App) handleUpsertSetting(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "key is required"})
 		return
 	}
-	if err := a.Q.UpsertSetting(r.Context(), gen.UpsertSettingParams{
+	if err := a.MarketQ.UpsertSetting(r.Context(), marketdb.UpsertSettingParams{
 		Key:   in.Key,
 		Value: in.Value,
 	}); err != nil {

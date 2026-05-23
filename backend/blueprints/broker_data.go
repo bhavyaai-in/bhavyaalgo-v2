@@ -11,7 +11,7 @@ import (
 	"bhavyaaialgo/backend/brokers/angel"
 )
 
-var errNoToken = errors.New("broker not connected")
+var errNoToken = errors.New("broker token not generated")
 
 func (a *App) RegisterBrokerDataRoutes(mux *http.ServeMux) {
 	mux.HandleFunc("GET /api/broker-orders/{id}", a.authMiddleware(a.handleBrokerOrders))
@@ -28,13 +28,14 @@ type brokerClientResult struct {
 	aliceClient   *aliceblue.Client
 	authToken     string
 	brokerName    string
+	tokenStatus   string
 }
 
 func (a *App) brokerClient(id int64) (*brokerClientResult, error) {
-	var authToken, brokerName, brokerAPI, brokerAPISecret string
-	err := a.DB.QueryRow(
-		`SELECT broker_token, broker_name, broker_api, broker_api_secret FROM brokers WHERE id = ?`, id,
-	).Scan(&authToken, &brokerName, &brokerAPI, &brokerAPISecret)
+	var authToken, brokerName, brokerAPI, brokerAPISecret, tokenStatus string
+	err := a.TradingDB.QueryRow(
+		`SELECT broker_token, broker_name, broker_api, broker_api_secret, token_status FROM brokers WHERE id = ?`, id,
+	).Scan(&authToken, &brokerName, &brokerAPI, &brokerAPISecret, &tokenStatus)
 	if err != nil {
 		return nil, err
 	}
@@ -44,8 +45,9 @@ func (a *App) brokerClient(id int64) (*brokerClientResult, error) {
 	apiKey := getAPIKey(brokerAPI)
 	apiSecret := getAPISecret(brokerAPISecret)
 	result := &brokerClientResult{
-		authToken:  authToken,
-		brokerName: brokerName,
+		authToken:   authToken,
+		brokerName:  brokerName,
+		tokenStatus: tokenStatus,
 	}
 	switch brokerName {
 	case "angel":
@@ -54,6 +56,13 @@ func (a *App) brokerClient(id int64) (*brokerClientResult, error) {
 		result.aliceClient = aliceblue.NewClient(apiKey, apiSecret)
 	}
 	return result, nil
+}
+
+func (bc *brokerClientResult) apiError() string {
+	if bc.tokenStatus == "connected" {
+		return "could not connect broker"
+	}
+	return "broker token not generated"
 }
 
 func (a *App) handleBrokerOrders(w http.ResponseWriter, r *http.Request) {
@@ -71,14 +80,14 @@ func (a *App) handleBrokerOrders(w http.ResponseWriter, r *http.Request) {
 	case "angel":
 		data, err := bc.angelClient.GetOrderBook(bc.authToken)
 		if err != nil {
-			writeJSON(w, http.StatusBadGateway, map[string]string{"error": err.Error()})
+			writeJSON(w, http.StatusBadGateway, map[string]string{"error": bc.apiError()})
 			return
 		}
 		writeJSON(w, http.StatusOK, data)
 	case "aliceblue":
 		data, err := bc.aliceClient.GetOrderBook(bc.authToken)
 		if err != nil {
-			writeJSON(w, http.StatusBadGateway, map[string]string{"error": err.Error()})
+			writeJSON(w, http.StatusBadGateway, map[string]string{"error": bc.apiError()})
 			return
 		}
 		writeJSON(w, http.StatusOK, normalizeOrders(data))
@@ -102,14 +111,14 @@ func (a *App) handleBrokerPositions(w http.ResponseWriter, r *http.Request) {
 	case "angel":
 		data, err := bc.angelClient.GetPositions(bc.authToken)
 		if err != nil {
-			writeJSON(w, http.StatusBadGateway, map[string]string{"error": err.Error()})
+			writeJSON(w, http.StatusBadGateway, map[string]string{"error": bc.apiError()})
 			return
 		}
 		writeJSON(w, http.StatusOK, data)
 	case "aliceblue":
 		data, err := bc.aliceClient.GetPositions(bc.authToken)
 		if err != nil {
-			writeJSON(w, http.StatusBadGateway, map[string]string{"error": err.Error()})
+			writeJSON(w, http.StatusBadGateway, map[string]string{"error": bc.apiError()})
 			return
 		}
 		writeJSON(w, http.StatusOK, data)
@@ -133,14 +142,14 @@ func (a *App) handleBrokerHoldings(w http.ResponseWriter, r *http.Request) {
 	case "angel":
 		data, err := bc.angelClient.DoGet(angel.HoldingURL, bc.authToken)
 		if err != nil {
-			writeJSON(w, http.StatusBadGateway, map[string]string{"error": err.Error()})
+			writeJSON(w, http.StatusBadGateway, map[string]string{"error": bc.apiError()})
 			return
 		}
 		writeJSON(w, http.StatusOK, data)
 	case "aliceblue":
 		data, err := bc.aliceClient.GetHoldings(bc.authToken, "cnc")
 		if err != nil {
-			writeJSON(w, http.StatusBadGateway, map[string]string{"error": err.Error()})
+			writeJSON(w, http.StatusBadGateway, map[string]string{"error": bc.apiError()})
 			return
 		}
 		writeJSON(w, http.StatusOK, data)
@@ -164,14 +173,14 @@ func (a *App) handleBrokerMargin(w http.ResponseWriter, r *http.Request) {
 	case "angel":
 		data, err := bc.angelClient.GetMargin(bc.authToken)
 		if err != nil {
-			writeJSON(w, http.StatusBadGateway, map[string]string{"error": err.Error()})
+			writeJSON(w, http.StatusBadGateway, map[string]string{"error": bc.apiError()})
 			return
 		}
 		writeJSON(w, http.StatusOK, data)
 	case "aliceblue":
 		data, err := bc.aliceClient.GetMargin(bc.authToken)
 		if err != nil {
-			writeJSON(w, http.StatusBadGateway, map[string]string{"error": err.Error()})
+			writeJSON(w, http.StatusBadGateway, map[string]string{"error": bc.apiError()})
 			return
 		}
 		writeJSON(w, http.StatusOK, data)

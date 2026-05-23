@@ -7,7 +7,7 @@ import (
 	"net/http"
 	"strconv"
 
-	"bhavyaaialgo/backend/db/gen"
+	tradingdb "bhavyaaialgo/backend/db/trading/gen"
 )
 
 func generateSecretKey() string {
@@ -17,48 +17,40 @@ func generateSecretKey() string {
 }
 
 func (a *App) RegisterStrategyRoutes(mux *http.ServeMux) {
-	// Strategy Types
 	mux.HandleFunc("GET /api/strategy-types", a.authMiddleware(a.handleListStrategyTypes))
 	mux.HandleFunc("POST /api/strategy-types", a.authMiddleware(a.handleCreateStrategyType))
 	mux.HandleFunc("PUT /api/strategy-types/{id}", a.authMiddleware(a.handleUpdateStrategyType))
 	mux.HandleFunc("DELETE /api/strategy-types/{id}", a.authMiddleware(a.handleDeleteStrategyType))
 
-	// Strategies
 	mux.HandleFunc("GET /api/strategies", a.authMiddleware(a.handleListStrategies))
 	mux.HandleFunc("POST /api/strategies", a.authMiddleware(a.handleCreateStrategy))
 	mux.HandleFunc("GET /api/strategies/{id}", a.authMiddleware(a.handleGetStrategy))
 	mux.HandleFunc("PUT /api/strategies/{id}", a.authMiddleware(a.handleUpdateStrategy))
 	mux.HandleFunc("DELETE /api/strategies/{id}", a.authMiddleware(a.handleDeleteStrategy))
 
-	// Strategy Info
 	mux.HandleFunc("GET /api/strategies/{id}/info", a.authMiddleware(a.handleListStrategyInfo))
 	mux.HandleFunc("POST /api/strategies/{id}/info", a.authMiddleware(a.handleCreateStrategyInfo))
 	mux.HandleFunc("DELETE /api/strategies/{id}/info/{infoId}", a.authMiddleware(a.handleDeleteStrategyInfo))
 
-	// Strategy Joiners
 	mux.HandleFunc("GET /api/strategies/{id}/joiners", a.authMiddleware(a.handleListStrategyJoiners))
 	mux.HandleFunc("POST /api/strategies/{id}/joiners", a.authMiddleware(a.handleCreateStrategyJoiner))
 	mux.HandleFunc("PUT /api/strategies/{id}/joiners/{joinerId}", a.authMiddleware(a.handleUpdateStrategyJoiner))
 	mux.HandleFunc("DELETE /api/strategies/{id}/joiners/{joinerId}", a.authMiddleware(a.handleDeleteStrategyJoiner))
 
-	// Strategy Positions & Orders
 	mux.HandleFunc("GET /api/strategies/{id}/positions", a.authMiddleware(a.handleListStrategyPositions))
 	mux.HandleFunc("GET /api/strategies/{id}/orders", a.authMiddleware(a.handleListStrategyOrders))
 
-	// Strategy Place Order (multi-broker)
 	mux.HandleFunc("POST /api/strategies/{id}/place-order", a.authMiddleware(a.handleStrategyPlaceOrder))
 }
 
-// ─── Strategy Types ────────────────────────────────────────────────────────────
-
 func (a *App) handleListStrategyTypes(w http.ResponseWriter, r *http.Request) {
-	types, err := a.Q.ListStrategyTypes(r.Context())
+	types, err := a.TradingQ.ListStrategyTypes(r.Context())
 	if err != nil {
 		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
 		return
 	}
 	if types == nil {
-		types = []gen.StrategyType{}
+		types = []tradingdb.StrategyType{}
 	}
 	writeJSON(w, http.StatusOK, types)
 }
@@ -74,7 +66,7 @@ func (a *App) handleCreateStrategyType(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "invalid request"})
 		return
 	}
-	id, err := a.Q.CreateStrategyType(r.Context(), gen.CreateStrategyTypeParams{
+	id, err := a.TradingQ.CreateStrategyType(r.Context(), tradingdb.CreateStrategyTypeParams{
 		Name:             in.Name,
 		RulesExplanation: in.RulesExplanation,
 	})
@@ -96,7 +88,7 @@ func (a *App) handleUpdateStrategyType(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "invalid request"})
 		return
 	}
-	if err := a.Q.UpdateStrategyType(r.Context(), gen.UpdateStrategyTypeParams{
+	if err := a.TradingQ.UpdateStrategyType(r.Context(), tradingdb.UpdateStrategyTypeParams{
 		Name:             in.Name,
 		RulesExplanation: in.RulesExplanation,
 		ID:               id,
@@ -113,14 +105,12 @@ func (a *App) handleDeleteStrategyType(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "invalid id"})
 		return
 	}
-	if err := a.Q.DeleteStrategyType(r.Context(), id); err != nil {
+	if err := a.TradingQ.DeleteStrategyType(r.Context(), id); err != nil {
 		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
 		return
 	}
 	writeJSON(w, http.StatusOK, map[string]string{"status": "deleted"})
 }
-
-// ─── Strategies ────────────────────────────────────────────────────────────────
 
 type strategyInput struct {
 	Name              string  `json:"name"`
@@ -140,13 +130,13 @@ type strategyInput struct {
 }
 
 func (a *App) handleListStrategies(w http.ResponseWriter, r *http.Request) {
-	list, err := a.Q.ListStrategies(r.Context())
+	list, err := a.TradingQ.ListStrategies(r.Context())
 	if err != nil {
 		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
 		return
 	}
 	if list == nil {
-		list = []gen.Strategy{}
+		list = []tradingdb.Strategy{}
 	}
 	writeJSON(w, http.StatusOK, list)
 }
@@ -160,7 +150,7 @@ func (a *App) handleCreateStrategy(w http.ResponseWriter, r *http.Request) {
 	if in.StrategySecretKey == "" {
 		in.StrategySecretKey = generateSecretKey()
 	}
-	id, err := a.Q.CreateStrategy(r.Context(), gen.CreateStrategyParams{
+	id, err := a.TradingQ.CreateStrategy(r.Context(), tradingdb.CreateStrategyParams{
 		Name:             in.Name,
 		StrategySecretKey: in.StrategySecretKey,
 		StrategyType:     in.StrategyType,
@@ -189,7 +179,7 @@ func (a *App) handleGetStrategy(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "invalid id"})
 		return
 	}
-	s, err := a.Q.GetStrategy(r.Context(), id)
+	s, err := a.TradingQ.GetStrategy(r.Context(), id)
 	if err != nil {
 		writeJSON(w, http.StatusNotFound, map[string]string{"error": "not found"})
 		return
@@ -209,12 +199,12 @@ func (a *App) handleUpdateStrategy(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if in.StrategySecretKey == "" {
-		existing, err := a.Q.GetStrategy(r.Context(), id)
+		existing, err := a.TradingQ.GetStrategy(r.Context(), id)
 		if err == nil {
 			in.StrategySecretKey = existing.StrategySecretKey
 		}
 	}
-	if err := a.Q.UpdateStrategy(r.Context(), gen.UpdateStrategyParams{
+	if err := a.TradingQ.UpdateStrategy(r.Context(), tradingdb.UpdateStrategyParams{
 		Name:              in.Name,
 		StrategySecretKey: in.StrategySecretKey,
 		StrategyType:      in.StrategyType,
@@ -243,17 +233,11 @@ func (a *App) handleDeleteStrategy(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "invalid id"})
 		return
 	}
-	if err := a.Q.DeleteStrategy(r.Context(), id); err != nil {
+	if err := a.TradingQ.DeleteStrategy(r.Context(), id); err != nil {
 		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
 		return
 	}
 	writeJSON(w, http.StatusOK, map[string]string{"status": "deleted"})
-}
-
-// ─── Strategy Info ─────────────────────────────────────────────────────────────
-
-type strategyInfoInput struct {
-	Info string `json:"info"`
 }
 
 func (a *App) handleListStrategyInfo(w http.ResponseWriter, r *http.Request) {
@@ -262,13 +246,13 @@ func (a *App) handleListStrategyInfo(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "invalid id"})
 		return
 	}
-	list, err := a.Q.ListStrategyInfo(r.Context(), id)
+	list, err := a.TradingQ.ListStrategyInfo(r.Context(), id)
 	if err != nil {
 		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
 		return
 	}
 	if list == nil {
-		list = []gen.StrategyInfo{}
+		list = []tradingdb.StrategyInfo{}
 	}
 	writeJSON(w, http.StatusOK, list)
 }
@@ -284,7 +268,7 @@ func (a *App) handleCreateStrategyInfo(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "invalid request"})
 		return
 	}
-	id, err := a.Q.CreateStrategyInfo(r.Context(), gen.CreateStrategyInfoParams{
+	id, err := a.TradingQ.CreateStrategyInfo(r.Context(), tradingdb.CreateStrategyInfoParams{
 		StrategyID: strategyID,
 		Info:       in.Info,
 	})
@@ -301,22 +285,15 @@ func (a *App) handleDeleteStrategyInfo(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "invalid id"})
 		return
 	}
-	if err := a.Q.DeleteStrategyInfo(r.Context(), id); err != nil {
+	if err := a.TradingQ.DeleteStrategyInfo(r.Context(), id); err != nil {
 		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
 		return
 	}
 	writeJSON(w, http.StatusOK, map[string]string{"status": "deleted"})
 }
 
-// ─── Strategy Joiners ─────────────────────────────────────────────────────────
-
-type strategyJoinerInput struct {
-	BrokerID         int64   `json:"broker_id"`
-	Quantity         float64 `json:"quantity"`
-	ReEntry          int64   `json:"re_entry"`
-	ReEntryTriggered int64   `json:"re_entry_triggered"`
-	Multiplier       float64 `json:"multiplier"`
-	IsActive         int64   `json:"is_active"`
+type strategyInfoInput struct {
+	Info string `json:"info"`
 }
 
 func (a *App) handleListStrategyJoiners(w http.ResponseWriter, r *http.Request) {
@@ -325,13 +302,13 @@ func (a *App) handleListStrategyJoiners(w http.ResponseWriter, r *http.Request) 
 		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "invalid id"})
 		return
 	}
-	list, err := a.Q.ListStrategyJoiners(r.Context(), id)
+	list, err := a.TradingQ.ListStrategyJoiners(r.Context(), id)
 	if err != nil {
 		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
 		return
 	}
 	if list == nil {
-		list = []gen.StrategyJoiner{}
+		list = []tradingdb.StrategyJoiner{}
 	}
 	writeJSON(w, http.StatusOK, list)
 }
@@ -347,7 +324,7 @@ func (a *App) handleCreateStrategyJoiner(w http.ResponseWriter, r *http.Request)
 		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "invalid request"})
 		return
 	}
-	id, err := a.Q.CreateStrategyJoiner(r.Context(), gen.CreateStrategyJoinerParams{
+	id, err := a.TradingQ.CreateStrategyJoiner(r.Context(), tradingdb.CreateStrategyJoinerParams{
 		BrokerID:        in.BrokerID,
 		StrategyID:      strategyID,
 		Quantity:        in.Quantity,
@@ -374,7 +351,7 @@ func (a *App) handleUpdateStrategyJoiner(w http.ResponseWriter, r *http.Request)
 		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "invalid request"})
 		return
 	}
-	if err := a.Q.UpdateStrategyJoiner(r.Context(), gen.UpdateStrategyJoinerParams{
+	if err := a.TradingQ.UpdateStrategyJoiner(r.Context(), tradingdb.UpdateStrategyJoinerParams{
 		Quantity:        in.Quantity,
 		ReEntry:         in.ReEntry,
 		ReEntryTriggered: in.ReEntryTriggered,
@@ -394,14 +371,21 @@ func (a *App) handleDeleteStrategyJoiner(w http.ResponseWriter, r *http.Request)
 		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "invalid id"})
 		return
 	}
-	if err := a.Q.DeleteStrategyJoiner(r.Context(), id); err != nil {
+	if err := a.TradingQ.DeleteStrategyJoiner(r.Context(), id); err != nil {
 		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
 		return
 	}
 	writeJSON(w, http.StatusOK, map[string]string{"status": "deleted"})
 }
 
-// ─── Strategy Positions & Orders ──────────────────────────────────────────────
+type strategyJoinerInput struct {
+	BrokerID         int64   `json:"broker_id"`
+	Quantity         float64 `json:"quantity"`
+	ReEntry          int64   `json:"re_entry"`
+	ReEntryTriggered int64   `json:"re_entry_triggered"`
+	Multiplier       float64 `json:"multiplier"`
+	IsActive         int64   `json:"is_active"`
+}
 
 func (a *App) handleListStrategyPositions(w http.ResponseWriter, r *http.Request) {
 	id, err := strconv.ParseInt(r.PathValue("id"), 10, 64)
@@ -409,13 +393,13 @@ func (a *App) handleListStrategyPositions(w http.ResponseWriter, r *http.Request
 		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "invalid id"})
 		return
 	}
-	list, err := a.Q.ListStrategyPositions(r.Context(), id)
+	list, err := a.TradingQ.ListStrategyPositions(r.Context(), id)
 	if err != nil {
 		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
 		return
 	}
 	if list == nil {
-		list = []gen.StrategyPosition{}
+		list = []tradingdb.StrategyPosition{}
 	}
 	writeJSON(w, http.StatusOK, list)
 }
@@ -426,13 +410,13 @@ func (a *App) handleListStrategyOrders(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "invalid id"})
 		return
 	}
-	list, err := a.Q.ListOrdersByStrategy(r.Context(), sql.NullInt64{Int64: id, Valid: true})
+	list, err := a.TradingQ.ListOrdersByStrategy(r.Context(), sql.NullInt64{Int64: id, Valid: true})
 	if err != nil {
 		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
 		return
 	}
 	if list == nil {
-		list = []gen.Order{}
+		list = []tradingdb.Order{}
 	}
 	writeJSON(w, http.StatusOK, list)
 }
@@ -460,7 +444,7 @@ func (a *App) handleStrategyPlaceOrder(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	joiners, err := a.Q.ListStrategyJoiners(r.Context(), strategyID)
+	joiners, err := a.TradingQ.ListStrategyJoiners(r.Context(), strategyID)
 	if err != nil {
 		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
 		return

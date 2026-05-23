@@ -1,6 +1,7 @@
 <script setup>
 import { ref, onMounted, watch } from 'vue'
 import { useRoute } from 'vue-router'
+import BrokerState from '../components/brokers/BrokerState.vue'
 
 const route = useRoute()
 
@@ -58,6 +59,25 @@ function cap(str) {
   if (!str) return ''
   return str.replace(/\b\w/g, c => c.toUpperCase())
 }
+
+function stateType() {
+  if (loading.value) return 'loading'
+  if (error.value) {
+    if (error.value === 'could not connect broker' || error.value === 'broker token not generated') {
+      return 'disconnected'
+    }
+    return 'error'
+  }
+  if (!data.value || (Array.isArray(data.value) && data.value.length === 0)) return 'empty'
+  return null
+}
+
+function stateMessage() {
+  if (loading.value) return 'Loading...'
+  if (error.value) return error.value
+  if (!data.value || (Array.isArray(data.value) && data.value.length === 0)) return 'No data.'
+  return ''
+}
 </script>
 
 <template>
@@ -71,9 +91,7 @@ function cap(str) {
       </select>
     </header>
 
-    <div v-if="loading" class="state-msg">Loading...</div>
-    <div v-else-if="error" class="state-msg error">{{ error }}</div>
-    <div v-else-if="!data || (Array.isArray(data) && data.length === 0)" class="state-msg">No data.</div>
+    <BrokerState v-if="stateType()" :type="stateType()" :message="stateMessage()" />
     <div v-else class="table-wrap">
       <table v-if="Array.isArray(data)" class="data-table">
         <thead>
@@ -116,8 +134,6 @@ header h2 { margin: 0; }
   cursor: pointer;
   font-weight: 500;
 }
-.state-msg { text-align: center; padding: 2rem; color: hsl(var(--muted-foreground)); }
-.state-msg.error { color: hsl(var(--destructive)); }
 .table-wrap { overflow-x: auto; }
 .data-table { width: 100%; border-collapse: collapse; font-size: var(--font-sm); }
 .data-table th, .data-table td {

@@ -5,58 +5,113 @@ import (
 	"database/sql"
 	"fmt"
 	"log"
+	"runtime"
 	"time"
 
-	"bhavyaaialgo/backend/db/gen"
+	marketdb "bhavyaaialgo/backend/db/market/gen"
+	tradingdb "bhavyaaialgo/backend/db/trading/gen"
 	"bhavyaaialgo/backend/internal/config"
 
 	_ "modernc.org/sqlite"
 )
 
-func New(cfg *config.Config) (*sql.DB, *gen.Queries, error) {
-	database, err := sql.Open("sqlite", cfg.DBPath)
-	if err != nil {
-		return nil, nil, fmt.Errorf("failed to open db: %w", err)
-	}
-
-	database.SetMaxOpenConns(1)
-	database.SetMaxIdleConns(1)
-
-	if err := database.Ping(); err != nil {
-		database.Close()
-		return nil, nil, fmt.Errorf("failed to ping db: %w", err)
-	}
-
-	q := gen.New(database)
-
-	if _, err := database.Exec("PRAGMA journal_mode=WAL"); err != nil {
-		log.Printf("pragma journal_mode: %v", err)
-	}
-	if _, err := database.Exec("PRAGMA synchronous=NORMAL"); err != nil {
-		log.Printf("pragma synchronous: %v", err)
-	}
-
-	if err := createTables(database); err != nil {
-		database.Close()
-		return nil, nil, fmt.Errorf("create tables: %w", err)
-	}
-
-	if _, err := database.Exec(`DELETE FROM master_contracts WHERE id NOT IN (SELECT MIN(id) FROM master_contracts GROUP BY symbol, exchange, instrumenttype, token)`); err != nil {
-		log.Printf("clean master_contracts duplicates: %v", err)
-	}
-
-	return database, q, nil
+type Databases struct {
+	Market    *sql.DB
+	Trading   *sql.DB
+	MarketQ   *marketdb.Queries
+	TradingQ  *tradingdb.Queries
 }
 
-func createTables(database *sql.DB) error {
-	for _, ddl := range AllTables {
-		if _, err := database.Exec(ddl); err != nil {
-			return fmt.Errorf("exec ddl: %w", err)
+func New(cfg *config.Config) (*Databases, error) {
+	marketPath := cfg.MarketDBPath
+	if marketPath == "" {
+		marketPath = "data-market.db"
+	}
+	tradingPath := cfg.TradingDBPath
+	if tradingPath == "" {
+		tradingPath = "data-trading.db"
+	}
+
+	marketDB, err := sql.Open("sqlite", marketPath)
+	if err != nil {
+		return nil, fmt.Errorf("failed to open market db: %w", err)
+	}
+	tradingDB, err := sql.Open("sqlite", tradingPath)
+	if err != nil {
+		marketDB.Close()
+		return nil, fmt.Errorf("failed to open trading db: %w", err)
+	}
+
+	maxConns := runtime.GOMAXPROCS(0) * 2
+	for _, d := range []*sql.DB{marketDB, tradingDB} {
+		d.SetMaxOpenConns(maxConns)
+		d.SetMaxIdleConns(maxConns)
+		d.SetConnMaxLifetime(30 * time.Minute)
+	}
+
+	if err := marketDB.Ping(); err != nil {
+		marketDB.Close()
+		tradingDB.Close()
+		return nil, fmt.Errorf("failed to ping market db: %w", err)
+	}
+	if err := tradingDB.Ping(); err != nil {
+		marketDB.Close()
+		tradingDB.Close()
+		return nil, fmt.Errorf("failed to ping trading db: %w", err)
+	}
+
+	for _, d := range []*sql.DB{marketDB, tradingDB} {
+		if _, err := d.Exec("PRAGMA journal_mode=WAL"); err != nil {
+			log.Printf("pragma journal_mode: %v", err)
+		}
+		if _, err := d.Exec("PRAGMA synchronous=NORMAL"); err != nil {
+			log.Printf("pragma synchronous: %v", err)
+		}
+		if _, err := d.Exec("PRAGMA busy_timeout=5000"); err != nil {
+			log.Printf("pragma busy_timeout: %v", err)
+		}
+		if _, err := d.Exec("PRAGMA cache_size=-8000"); err != nil {
+			log.Printf("pragma cache_size: %v", err)
 		}
 	}
 
-	if _, err := database.Exec(`ALTER TABLE master_contracts ADD COLUMN broker_name TEXT NOT NULL DEFAULT ''`); err != nil {
-		log.Printf("migrate master_contracts broker_name: %v", err)
+	mq := marketdb.New(marketDB)
+	tq := tradingdb.New(tradingDB)
+
+	if err := createMarketTables(marketDB); err != nil {
+		marketDB.Close()
+		tradingDB.Close()
+		return nil, fmt.Errorf("create market tables: %w", err)
+	}
+	if err := createTradingTables(tradingDB); err != nil {
+		marketDB.Close()
+		tradingDB.Close()
+		return nil, fmt.Errorf("create trading tables: %w", err)
+	}
+
+	if _, err := marketDB.Exec(`DELETE FROM master_contracts WHERE id NOT IN (SELECT MIN(id) FROM master_contracts GROUP BY symbol, exchange, instrumenttype, token)`); err != nil {
+		log.Printf("clean master_contracts duplicates: %v", err)
+	}
+
+	return &Databases{
+		Market:   marketDB,
+		Trading:  tradingDB,
+		MarketQ:  mq,
+		TradingQ: tq,
+	}, nil
+}
+
+func createMarketTables(database *sql.DB) error {
+	for _, ddl := range MarketDDLs {
+		if _, err := database.Exec(ddl); err != nil {
+			return fmt.Errorf("exec market ddl: %w", err)
+		}
+	}
+	var hasBroker bool
+	if err := database.QueryRow(`SELECT COUNT(*) > 0 FROM pragma_table_info('master_contracts') WHERE name='broker_name'`).Scan(&hasBroker); err == nil && !hasBroker {
+		if _, err := database.Exec(`ALTER TABLE master_contracts ADD COLUMN broker_name TEXT NOT NULL DEFAULT ''`); err != nil {
+			log.Printf("migrate master_contracts broker_name: %v", err)
+		}
 	}
 	if _, err := database.Exec(McBrokerIndexSQL); err != nil {
 		log.Printf("create broker index: %v", err)
@@ -64,7 +119,15 @@ func createTables(database *sql.DB) error {
 	if _, err := database.Exec(`DELETE FROM master_contracts WHERE exchange IN ('NSE_INDEX','BSE_INDEX','MCX_INDEX')`); err != nil {
 		log.Printf("clean index entries: %v", err)
 	}
+	return nil
+}
 
+func createTradingTables(database *sql.DB) error {
+	for _, ddl := range TradingDDLs {
+		if _, err := database.Exec(ddl); err != nil {
+			return fmt.Errorf("exec trading ddl: %w", err)
+		}
+	}
 	return nil
 }
 
@@ -113,8 +176,4 @@ func LoadTokenSymbolMap(ctx context.Context, database *sql.DB) map[string]string
 		m[exchange+"|"+token] = symbol
 	}
 	return m
-}
-
-func WithTimeout(ctx context.Context, timeout time.Duration) (context.Context, context.CancelFunc) {
-	return context.WithTimeout(ctx, timeout)
 }

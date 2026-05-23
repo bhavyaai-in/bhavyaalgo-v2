@@ -8,7 +8,7 @@ import (
 	"strings"
 	"time"
 
-	"bhavyaaialgo/backend/db/gen"
+	tradingdb "bhavyaaialgo/backend/db/trading/gen"
 	"golang.org/x/crypto/bcrypt"
 )
 
@@ -86,7 +86,7 @@ func (s *Server) handleLogout(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) handleListBrokers(w http.ResponseWriter, r *http.Request) {
-	brokers, err := s.Q.ListBrokers(r.Context())
+	brokers, err := s.TradingQ.ListBrokers(r.Context())
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, err.Error())
 		return
@@ -117,7 +117,7 @@ func (s *Server) handleCreateBroker(w http.ResponseWriter, r *http.Request) {
 	}
 	active := boolToInt64(req.IsActive)
 	autologin := boolToInt64(req.IsAutologin)
-	id, err := s.Q.CreateBroker(r.Context(), gen.CreateBrokerParams{
+	id, err := s.TradingQ.CreateBroker(r.Context(), tradingdb.CreateBrokerParams{
 		FriendlyName:    req.FriendlyName,
 		BrokerUserid:    req.BrokerUserid,
 		BrokerPassword:  req.BrokerPassword,
@@ -139,7 +139,7 @@ func (s *Server) handleCreateBroker(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusInternalServerError, err.Error())
 		return
 	}
-	b, err := s.Q.GetBroker(r.Context(), id)
+	b, err := s.TradingQ.GetBroker(r.Context(), id)
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, err.Error())
 		return
@@ -154,7 +154,7 @@ func (s *Server) handleGetBroker(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusBadRequest, "invalid id")
 		return
 	}
-	b, err := s.Q.GetBroker(r.Context(), id)
+	b, err := s.TradingQ.GetBroker(r.Context(), id)
 	if err != nil {
 		writeError(w, http.StatusNotFound, "not found")
 		return
@@ -187,12 +187,12 @@ func (s *Server) handleUpdateBroker(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusBadRequest, "invalid request")
 		return
 	}
-	existing, err := s.Q.GetBroker(r.Context(), id)
+	existing, err := s.TradingQ.GetBroker(r.Context(), id)
 	if err != nil {
 		writeError(w, http.StatusNotFound, "not found")
 		return
 	}
-	err = s.Q.UpdateBroker(r.Context(), gen.UpdateBrokerParams{
+	err = s.TradingQ.UpdateBroker(r.Context(), tradingdb.UpdateBrokerParams{
 		FriendlyName:    req.FriendlyName,
 		BrokerUserid:    req.BrokerUserid,
 		BrokerPassword:  req.BrokerPassword,
@@ -215,7 +215,7 @@ func (s *Server) handleUpdateBroker(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusInternalServerError, err.Error())
 		return
 	}
-	updated, _ := s.Q.GetBroker(r.Context(), id)
+	updated, _ := s.TradingQ.GetBroker(r.Context(), id)
 	writeJSON(w, http.StatusOK, brokerToResponse(updated))
 }
 
@@ -226,7 +226,7 @@ func (s *Server) handleDeleteBroker(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusBadRequest, "invalid id")
 		return
 	}
-	if err := s.Q.DeleteBroker(r.Context(), id); err != nil {
+	if err := s.TradingQ.DeleteBroker(r.Context(), id); err != nil {
 		writeError(w, http.StatusInternalServerError, err.Error())
 		return
 	}
@@ -234,7 +234,7 @@ func (s *Server) handleDeleteBroker(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) handleListBrokerList(w http.ResponseWriter, r *http.Request) {
-	entries, err := s.Q.ListBrokerList(r.Context())
+	entries, err := s.TradingQ.ListBrokerList(r.Context())
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, err.Error())
 		return
@@ -264,7 +264,7 @@ func (s *Server) handleListBrokerList(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) handleBrokerColumns(w http.ResponseWriter, r *http.Request) {
-	rows, err := s.Q.ListBrokerColumns(r.Context())
+	rows, err := s.TradingQ.ListBrokerColumns(r.Context())
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, err.Error())
 		return
@@ -290,7 +290,7 @@ func (s *Server) handleVersion(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
-func brokerToResponse(b gen.Broker) BrokerResponse {
+func brokerToResponse(b tradingdb.Broker) BrokerResponse {
 	tokenStatus := b.TokenStatus
 	if tokenStatus == "connected" && !isTokenDateToday(b.BrokerTokenDate) {
 		tokenStatus = "expired"
