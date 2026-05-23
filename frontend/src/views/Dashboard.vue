@@ -11,6 +11,8 @@ import TradingWatchlist from '../components/TradingWatchlist.vue'
 import PlaceOrderModal from '../modals/brokers/PlaceOrderModal.vue'
 import StrategiesPage from '../components/strategies/StrategiesPage.vue'
 import SettingsPage from '../components/settings/SettingsPage.vue'
+import AppsPage from '../components/apps/AppsPage.vue'
+import OptionChainPage from '../components/option_chain/OptionChainPage.vue'
 
 const router = useRouter()
 const route = useRoute()
@@ -60,6 +62,7 @@ function handleLogout() {
           <button :class="{ active: activeTab === 'holdings' }" @click="go('holdings')">Holdings</button>
           <button :class="{ active: activeTab === 'margin' }" @click="go('margin')">Margin</button>
           <button :class="{ active: activeTab === 'strategies' }" @click="go('strategies')">Strategies</button>
+          <button :class="{ active: activeTab === 'apps' }" @click="go('apps')">Apps</button>
           <button :class="{ active: activeTab === 'settings' }" @click="go('settings')">Settings</button>
         </nav>
       </div>
@@ -80,6 +83,7 @@ function handleLogout() {
       <button :class="{ active: activeTab === 'holdings' }" @click="go('holdings')">Holdings</button>
       <button :class="{ active: activeTab === 'margin' }" @click="go('margin')">Margin</button>
       <button :class="{ active: activeTab === 'strategies' }" @click="go('strategies')">Strategies</button>
+      <button :class="{ active: activeTab === 'apps' }" @click="go('apps')">Apps</button>
       <button :class="{ active: activeTab === 'settings' }" @click="go('settings')">Settings</button>
       <button @click="watchlistOpen = true; menuOpen = false">📋 Watchlist</button>
       <button class="mobile-logout" @click="handleLogout">Logout</button>
@@ -101,6 +105,8 @@ function handleLogout() {
         <section v-if="activeTab === 'holdings'" class="tab-content"><HoldingsPage /></section>
         <section v-if="activeTab === 'margin'" class="tab-content"><MarginPage /></section>
         <section v-if="activeTab === 'strategies'" class="tab-content"><StrategiesPage /></section>
+        <section v-if="activeTab === 'optionchain'" class="tab-content wide"><OptionChainPage /></section>
+        <section v-if="activeTab === 'apps'" class="tab-content"><AppsPage /></section>
         <section v-if="activeTab === 'settings'" class="tab-content"><SettingsPage /></section>
       </main>
       <PlaceOrderModal
@@ -113,15 +119,15 @@ function handleLogout() {
 </template>
 
 <style scoped>
-.app-layout { display:flex; flex-direction:column; min-height:100vh; }
+.app-layout { display:flex; flex-direction:column; height:100vh; overflow:hidden; }
 
-/* Top bar */
+/* Top bar — fixed at top */
 .top-bar {
   display:flex; align-items:center; justify-content:space-between;
   height:52px; padding:0 1.5rem;
   border-bottom:1px solid hsl(var(--border));
   background:hsl(var(--card));
-  flex-shrink:0;
+  flex-shrink:0; position:sticky; top:0; z-index:30;
 }
 .top-left { display:flex; align-items:center; }
 .sidebar-spacer { width:380px; flex-shrink:0; }
@@ -142,17 +148,20 @@ function handleLogout() {
 }
 .logout-btn:hover { background:hsl(var(--destructive)); color:hsl(var(--destructive-foreground)); }
 
-/* Body */
-.body { display:flex; flex:1; }
+/* Body — flex row, fills remaining height */
+.body { display:flex; flex:1; min-height:0; overflow:hidden; }
 
 .content {
-  flex:1;
+  flex:1; min-width:0;
   max-width:960px;
   margin:0 auto;
   padding:1.5rem 2rem;
+  overflow-y:auto;
+  height:100%;
 }
 
 .tab-content { min-height:200px; }
+.tab-content.wide { max-width:none; }
 .welcome-card { background:hsl(var(--card)); border:1px solid hsl(var(--border)); border-radius:var(--radius); padding:1.5rem; }
 
 /* Mobile */

@@ -11,6 +11,8 @@ const routes = [
   { path: '/holdings', component: Dashboard, meta: { requiresAuth: true } },
   { path: '/margin', component: Dashboard, meta: { requiresAuth: true } },
   { path: '/strategies', component: Dashboard, meta: { requiresAuth: true } },
+  { path: '/optionchain', component: Dashboard, meta: { requiresAuth: true } },
+  { path: '/apps', component: Dashboard, meta: { requiresAuth: true } },
   { path: '/settings', component: Dashboard, meta: { requiresAuth: true } },
 ]
 

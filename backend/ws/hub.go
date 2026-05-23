@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"log"
 	"net/http"
+	"strings"
 	"sync"
 
 	"github.com/gorilla/websocket"
@@ -43,19 +44,34 @@ func (h *Hub) Unregister(c *Client) {
 	h.mu.Lock()
 	delete(h.clients, c)
 	for _, sym := range c.symbols {
-		if subs, ok := h.subscribers[sym]; ok {
-			delete(subs, c)
-			if len(subs) == 0 {
-				delete(h.subscribers, sym)
-			}
-		}
-		h.subscribed[sym]--
-		if h.subscribed[sym] <= 0 {
-			delete(h.subscribed, sym)
-		}
+		h.removeClientSubscriber(c, sym)
 	}
 	h.mu.Unlock()
 	h.syncBroker()
+}
+
+func (h *Hub) removeClientSubscriber(c *Client, sym string) {
+	// Remove from original key
+	if subs, ok := h.subscribers[sym]; ok {
+		delete(subs, c)
+		if len(subs) == 0 {
+			delete(h.subscribers, sym)
+		}
+	}
+	h.subscribed[sym]--
+	if h.subscribed[sym] <= 0 {
+		delete(h.subscribed, sym)
+	}
+	// Remove from broker-mapped key (mapped entries are only in subscribers, not subscribed)
+	mapped := mapToBrokerKey(sym, h.brokerName)
+	if mapped != sym {
+		if subs, ok := h.subscribers[mapped]; ok {
+			delete(subs, c)
+			if len(subs) == 0 {
+				delete(h.subscribers, mapped)
+			}
+		}
+	}
 }
 
 func (h *Hub) Subscribe(c *Client, symbols []string) {
@@ -75,16 +91,7 @@ func (h *Hub) Subscribe(c *Client, symbols []string) {
 func (h *Hub) Unsubscribe(c *Client, symbols []string) {
 	h.mu.Lock()
 	for _, sym := range symbols {
-		if subs, ok := h.subscribers[sym]; ok {
-			delete(subs, c)
-			if len(subs) == 0 {
-				delete(h.subscribers, sym)
-			}
-		}
-		h.subscribed[sym]--
-		if h.subscribed[sym] <= 0 {
-			delete(h.subscribed, sym)
-		}
+		h.removeClientSubscriber(c, sym)
 		for i := len(c.symbols) - 1; i >= 0; i-- {
 			if c.symbols[i] == sym {
 				c.symbols = append(c.symbols[:i], c.symbols[i+1:]...)
@@ -96,14 +103,32 @@ func (h *Hub) Unsubscribe(c *Client, symbols []string) {
 }
 
 func (h *Hub) syncBroker() {
-	h.mu.RLock()
+	h.mu.Lock()
 	symbols := make([]string, 0, len(h.subscribed))
 	for sym := range h.subscribed {
 		symbols = append(symbols, sym)
 	}
 	count := len(h.subscribed)
 	brokerName := h.brokerName
-	h.mu.RUnlock()
+
+	if count > 0 {
+		// Ensure subscribers are also stored under broker-mapped keys so that
+		// incoming ticks (with broker-format tokens) find the right subscribers.
+		for _, sym := range symbols {
+			mapped := mapToBrokerKey(sym, brokerName)
+			if mapped != sym {
+				if h.subscribers[mapped] == nil {
+					h.subscribers[mapped] = make(map[*Client]bool)
+				}
+				if orig, ok := h.subscribers[sym]; ok {
+					for c := range orig {
+						h.subscribers[mapped][c] = true
+					}
+				}
+			}
+		}
+	}
+	h.mu.Unlock()
 
 	if count > 0 {
 		switch brokerName {
@@ -128,6 +153,16 @@ func (h *Hub) syncBroker() {
 			}
 		}
 	}
+}
+
+func mapToBrokerKey(sym, brokerName string) string {
+	// For both brokers, ticks come back with just the raw token number,
+	// so subscribers must be stored under the raw token key.
+	parts := strings.SplitN(sym, "|", 2)
+	if len(parts) == 2 {
+		return parts[1]
+	}
+	return sym
 }
 
 func (h *Hub) BroadcastPreEncodedTick(token string, payload []byte) {

@@ -3,6 +3,7 @@ import { ref } from 'vue'
 const ws = ref(null)
 let reconnectTimer = null
 let listeners = {}
+let pendingSubscriptions = []
 
 function getToken() {
   return localStorage.getItem('token')
@@ -25,6 +26,10 @@ function connect() {
 
   socket.onopen = () => {
     if (reconnectTimer) { clearTimeout(reconnectTimer); reconnectTimer = null }
+    // Send any subscriptions that were queued while WS was connecting
+    if (pendingSubscriptions.length) {
+      socket.send(JSON.stringify({ type: 'subscribe', symbols: pendingSubscriptions }))
+    }
   }
 
   socket.onmessage = (event) => {
@@ -58,14 +63,18 @@ export function useWebSocket() {
   function send(msg) {
     if (ws.value && ws.value.readyState === WebSocket.OPEN) {
       ws.value.send(JSON.stringify(msg))
+      return true
     }
+    return false
   }
 
   function subscribe(symbols) {
+    pendingSubscriptions = symbols
     send({ type: 'subscribe', symbols })
   }
 
   function unsubscribe(symbols) {
+    pendingSubscriptions = []
     send({ type: 'unsubscribe', symbols })
   }
 

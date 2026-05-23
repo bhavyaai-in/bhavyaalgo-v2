@@ -212,31 +212,23 @@ function priceClass(item) {
       <span class="search-icon">🔍</span>
       <input v-model="searchQ" type="text" placeholder="Search & add symbols..." class="search-input" />
     </div>
-    <div v-if="searchQ" class="search-results">
-      <div v-if="searching" class="empty-msg">Searching...</div>
-      <div v-for="c in searchResults" :key="c.id" class="watchlist-row" @click="addToWatchlist(c)">
-        <div class="row-left">
-          <div class="symbol-info">
-            <span class="symbol-name">{{ c.symbol }}</span>
-            <div class="symbol-badge">{{ c.exchange }}</div>
+    <div class="watchlist-scroll">
+      <div v-if="searchQ" class="search-results">
+        <div v-if="searching" class="empty-msg">Searching...</div>
+        <div v-for="c in searchResults" :key="c.id" class="watchlist-row" @click="addToWatchlist(c)">
+          <div class="row-left">
+            <div class="symbol-info">
+              <span class="symbol-name">{{ c.symbol }}</span>
+              <span class="symbol-badge">{{ c.exchange }}</span>
+            </div>
           </div>
         </div>
-        <div class="row-right">
-          <button class="add-btn" title="Add">+</button>
-        </div>
       </div>
-      <div v-if="searchQ && !searchResults.length && !searching" class="empty-msg">No results.</div>
-    </div>
-
-    <!-- Watchlist items (scrollable) -->
-    <div class="watchlist-body">
-      <div v-for="(item, idx) in items" :key="item.id" class="watchlist-row" draggable="true"
-        @dragstart="dragItem = idx" @dragover.prevent @dragenter="dragOver = idx"
-        :class="{ 'drag-over': dragOver === idx }" @drop="onDrop(idx)">
+      <div v-for="(item, idx) in items" :key="item.id" class="watchlist-row" draggable="true" :class="{ 'drag-over': dragOver === idx }" @dragstart="dragItem = idx" @dragover.prevent="dragOver = idx" @dragleave="dragOver = null" @drop="onDrop(idx)" @dragend="dragItem = null; dragOver = null" @dblclick="emit('place-order', item)">
         <div class="row-left">
           <div class="symbol-info">
-            <strong class="symbol-name clickable" @click.stop="emit('place-order', item)">{{ item.symbol }}</strong>
-            <div class="symbol-badge">{{ item.exchange }}</div>
+            <span class="symbol-name" @click.stop="emit('place-order', item)">{{ item.symbol }}</span>
+            <span class="symbol-badge">{{ item.exchange }}</span>
           </div>
         </div>
         <div class="row-right" :class="priceClass(item)">
@@ -252,7 +244,6 @@ function priceClass(item) {
       <div v-if="!items.length && watchlists.length" class="empty-msg">No symbols in this list.</div>
       <div v-if="!watchlists.length" class="empty-msg">Create a watchlist to start.</div>
     </div>
-
     <div class="sidebar-footer">
       <span class="footer-label">{{ watchlists.length }} watchlist{{ watchlists.length !== 1 ? 's' : '' }}</span>
     </div>
@@ -276,6 +267,7 @@ function priceClass(item) {
   width:380px; flex-shrink:0; display:flex; flex-direction:column;
   background:hsl(var(--card)); border-right:1px solid hsl(var(--border));
   font-family:system-ui,-apple-system,sans-serif;
+  height:100%; overflow:hidden;
 }
 
 .sidebar-header { display:flex; align-items:center; justify-content:space-between; height:48px; padding:0 1rem; border-bottom:1px solid hsl(var(--border)); flex-shrink:0; }
@@ -298,12 +290,7 @@ function priceClass(item) {
 .search-icon { position:absolute; left:.625rem; font-size:.8rem; color:hsl(var(--muted-foreground)); pointer-events:none; }
 .search-input { width:100%; height:36px; padding:0 .75rem 0 2rem; border:1px solid hsl(var(--input)); border-radius:.5rem; background:hsl(var(--muted)); font-size:.8125rem; color:hsl(var(--foreground)); outline:none; }
 .search-input:focus { border-color:hsl(var(--ring)); box-shadow:0 0 0 2px hsl(var(--ring)/.15); }
-.search-results { border-top:1px solid hsl(var(--border)); }
-.search-icon { position:absolute; left:.625rem; font-size:.8rem; color:hsl(var(--muted-foreground)); pointer-events:none; }
-.search-input { width:100%; height:36px; padding:0 .75rem 0 2rem; border:1px solid hsl(var(--input)); border-radius:.5rem; background:hsl(var(--muted)); font-size:.8125rem; color:hsl(var(--foreground)); outline:none; }
-.search-input:focus { border-color:hsl(var(--ring)); box-shadow:0 0 0 2px hsl(var(--ring)/.15); }
-
-.watchlist-body { flex:1; overflow-y:auto; }
+.watchlist-scroll { flex:1; overflow-y:auto; min-height:0; }
 .watchlist-row { display:flex; align-items:center; justify-content:space-between; padding:.6rem 1rem; border-bottom:1px solid hsl(var(--border)/.5); cursor:pointer; transition:background .1s; }
 .watchlist-row:hover { background:hsl(var(--muted)/.5); }
 .row-left { display:flex; align-items:center; gap:.5rem; min-width:0; }

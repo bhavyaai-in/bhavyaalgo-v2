@@ -67,9 +67,15 @@ func (bp *AliceJSONParser) parseTick(msg []byte) (Tick, bool) {
 		return Tick{}, false
 	}
 
-	token, _ := raw["tk"].(string)
-	if token == "" {
+	tk, _ := raw["tk"].(string)
+	if tk == "" {
 		return Tick{}, false
+	}
+
+	// Strip exchange prefix (e.g. "NSE|26009" → "26009")
+	token := tk
+	if parts := strings.SplitN(tk, "|", 2); len(parts) == 2 {
+		token = parts[1]
 	}
 
 	var tick Tick
@@ -79,7 +85,10 @@ func (bp *AliceJSONParser) parseTick(msg []byte) (Tick, bool) {
 		tick.ExchangeType = mapExchange(e)
 	}
 
-	if sym, ok := bp.TokenSymbol[token]; ok {
+	// Try looking up symbol by both full and stripped token
+	if sym, ok := bp.TokenSymbol[tk]; ok {
+		tick.Symbol = sym
+	} else if sym, ok := bp.TokenSymbol[token]; ok {
 		tick.Symbol = sym
 	}
 	if len(token) >= 3 && token[:2] == "26" {
@@ -111,11 +120,11 @@ func (bp *AliceJSONParser) parseTick(msg []byte) (Tick, bool) {
 		if l, ok := raw["l"]; ok {
 			tick.Low = parseAnyFloat(l)
 		}
-		if v, ok := raw["v"].(string); ok && v != "" {
-			tick.Volume = parseInt64Str(v)
+		if f := parseAnyFloat(raw["v"]); f > 0 {
+			tick.Volume = int64(f)
 		}
-		if oi, ok := raw["oi"].(string); ok && oi != "" {
-			tick.OI = parseInt64Str(oi)
+		if f := parseAnyFloat(raw["oi"]); f > 0 {
+			tick.OI = int64(f)
 		}
 	} else {
 		tick.LTP = lp
@@ -123,11 +132,10 @@ func (bp *AliceJSONParser) parseTick(msg []byte) (Tick, bool) {
 			tick.Change = lp - closeVal
 			tick.Close = closeVal
 		}
-		if pc, ok := raw["pc"].(string); ok && pc != "" && lp > 0 {
-			pcVal := parseFloatStr(pc)
-			if tick.Change == 0 && pcVal != 0 {
-				tick.Change = lp * pcVal / (100 + pcVal)
-			}
+		// "pc" comes as a float64 from Alice NorenWS, not a string
+		if pcVal := parseAnyFloat(raw["pc"]); pcVal != 0 && lp > 0 && tick.Change == 0 {
+			tick.Change = lp * pcVal / (100 + pcVal)
+			tick.Close = lp * 100 / (100 + pcVal)
 		}
 	}
 

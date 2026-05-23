@@ -3,6 +3,7 @@ import { ref, onMounted } from 'vue'
 import { api, confirm } from '../../utils/api.js'
 import StrategyFormModal from './StrategyFormModal.vue'
 import StrategyDetailModal from './StrategyDetailModal.vue'
+import PlaceOrderModal from '../../modals/brokers/PlaceOrderModal.vue'
 
 const strategies = ref([])
 const types = ref([])
@@ -14,6 +15,8 @@ const editing = ref(null)
 const detailData = ref(null)
 const showDetail = ref(false)
 const detailTab = ref('overview')
+const showPlaceOrder = ref(false)
+const placeOrderStrategy = ref(null)
 
 async function fetchStrategies() {
   try {
@@ -113,10 +116,17 @@ onMounted(() => {
         <div class="sc-actions" @click.stop>
           <button class="chip" @click.stop="openEdit(s)">Edit</button>
           <button class="chip danger" @click.stop="deleteStrategy(s)">Delete</button>
-          <button class="chip primary" @click.stop="viewJoiners(s)">Joiners</button>
+          <button class="chip" @click.stop="viewJoiners(s)">Joiners</button>
+          <button class="chip primary" @click.stop="placeOrderStrategy = s; showPlaceOrder = true">Place Order</button>
         </div>
       </div>
     </div>
+
+    <PlaceOrderModal
+      :show="showPlaceOrder"
+      :strategy="placeOrderStrategy"
+      @close="showPlaceOrder = false; placeOrderStrategy = null"
+    />
 
     <StrategyFormModal
       :show="showForm"

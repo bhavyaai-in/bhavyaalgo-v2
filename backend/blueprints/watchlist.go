@@ -5,6 +5,7 @@ import (
 	"net/http"
 	"sort"
 	"strconv"
+	"strings"
 
 	marketdb "bhavyaaialgo/backend/db/market/gen"
 )
@@ -155,18 +156,64 @@ func (a *App) handleSearchContracts(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	pattern := "%" + q + "%"
-	results, err := a.MarketQ.SearchMasterContract(r.Context(), marketdb.SearchMasterContractParams{
-		Symbol: pattern, Brsymbol: pattern, Name: pattern,
-	})
+	rows, err := a.MarketDB.QueryContext(r.Context(), `
+		SELECT * FROM master_contracts
+		WHERE symbol LIKE ? OR brsymbol LIKE ? OR name LIKE ?
+		LIMIT 200
+	`, pattern, pattern, pattern)
 	if err != nil {
 		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
 		return
 	}
+	defer rows.Close()
+	var results []marketdb.MasterContract
+	for rows.Next() {
+		var r marketdb.MasterContract
+		if err := rows.Scan(&r.ID, &r.Symbol, &r.Brsymbol, &r.Name, &r.Exchange, &r.Brexchange,
+			&r.Token, &r.Expiry, &r.Strike, &r.Lotsize, &r.Instrumenttype, &r.TickSize, &r.BrokerName, &r.CreatedAt); err != nil {
+			continue
+		}
+		results = append(results, r)
+	}
 	if results == nil {
 		results = []marketdb.MasterContract{}
 	}
-	sortSearchResults(results)
-	writeJSON(w, http.StatusOK, results)
+	// Deduplicate by (symbol, exchange, instrumenttype) so each contract shows once
+	seen := make(map[string]bool)
+	var deduped []marketdb.MasterContract
+	for _, r := range results {
+		key := r.Symbol + "|" + r.Exchange + "|" + r.Instrumenttype
+		if seen[key] {
+			continue
+		}
+		seen[key] = true
+		deduped = append(deduped, r)
+	}
+	// Custom sort: prefix matches first, then by exchange→inst→symbol
+	upperQ := strings.ToUpper(q)
+	sort.SliceStable(deduped, func(i, j int) bool {
+		si, sj := strings.ToUpper(deduped[i].Symbol), strings.ToUpper(deduped[j].Symbol)
+		pi := strings.HasPrefix(si, upperQ)
+		pj := strings.HasPrefix(sj, upperQ)
+		if pi != pj {
+			return pi
+		}
+		ei := exchangeOrder[deduped[i].Exchange]
+		if ei == 0 { ei = 99 }
+		ej := exchangeOrder[deduped[j].Exchange]
+		if ej == 0 { ej = 99 }
+		if ei != ej { return ei < ej }
+		ii := instOrder[deduped[i].Instrumenttype]
+		if ii == 0 { ii = 99 }
+		ij := instOrder[deduped[j].Instrumenttype]
+		if ij == 0 { ij = 99 }
+		if ii != ij { return ii < ij }
+		return si < sj
+	})
+	if len(deduped) > 50 {
+		deduped = deduped[:50]
+	}
+	writeJSON(w, http.StatusOK, deduped)
 }
 
 var exchangeOrder = map[string]int{
@@ -175,8 +222,15 @@ var exchangeOrder = map[string]int{
 }
 
 var instOrder = map[string]int{
-	"EQ": 1, "FUT": 2, "FUTSTK": 2, "OPT": 3, "OPTSTK": 3,
+	"EQ": 1, "": 1, "0": 1,
+	"FUT": 2, "FUTSTK": 2, "FUTIDX": 2, "FUTCOM": 2, "FUTCUR": 2, "FUTENR": 2,
+	"FUTBLN": 2, "FUTBAS": 2, "FUTIRC": 2, "FUTIRT": 2,
+	"OPT": 3, "OPTSTK": 3, "OPTIDX": 3, "OPTCUR": 3, "OPTFUT": 3, "OPTBLN": 3, "OPTIRC": 3,
 	"CE": 3, "PE": 3,
+	"1": 2, "2": 2, "3": 3, "4": 3, "D": 3, "E": 3,
+	"INDEX": 1, "IF": 2, "IO": 3, "SF": 2, "SO": 3,
+	"UNDCUR": 1, "UNDIRC": 1, "UNDIRD": 1, "UNDIRT": 1,
+	"AMXIDX": 1, "COMDTY": 1, "ETF": 1,
 }
 
 func sortSearchResults(results []marketdb.MasterContract) {

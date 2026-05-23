@@ -1,10 +1,12 @@
 package server
 
 import (
+	"bufio"
 	"context"
 	"database/sql"
 	"log"
 	"log/slog"
+	"net"
 	"net/http"
 	"os"
 	"os/signal"
@@ -208,22 +210,35 @@ func (s *Server) autoStartBrokerStream(ctx context.Context) {
 	tokenSymbol := internaldb.LoadTokenSymbolMap(ctx, s.MarketDB)
 	symbols := internaldb.LoadWatchlistSymbols(ctx, s.MarketDB)
 
+	now := time.Now()
+	todayStart := time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, now.Location())
+	todayEnd := todayStart.Add(24 * time.Hour)
+	ts := todayStart.Format("2006-01-02 15:04:05")
+	te := todayEnd.Format("2006-01-02 15:04:05")
+
 	var aliceClientID, aliceSession, angelClient, angelAuth, angelFeed, angelKey string
 
 	s.TradingDB.QueryRowContext(ctx,
-		`SELECT broker_userid, broker_token FROM brokers WHERE broker_name='aliceblue' AND token_status='connected' AND DATE(broker_token_date) = DATE('now') LIMIT 1`,
+		`SELECT broker_userid, broker_token FROM brokers WHERE broker_name='aliceblue' AND token_status='connected' AND broker_token_date >= ? AND broker_token_date < ? LIMIT 1`,
+		ts, te,
 	).Scan(&aliceClientID, &aliceSession)
 	s.TradingDB.QueryRowContext(ctx,
-		`SELECT broker_userid, broker_token, feed_token, broker_api FROM brokers WHERE broker_name='angel' AND token_status='connected' AND DATE(broker_token_date) = DATE('now') LIMIT 1`,
+		`SELECT broker_userid, broker_token, feed_token, broker_api FROM brokers WHERE broker_name='angel' AND token_status='connected' AND broker_token_date >= ? AND broker_token_date < ? LIMIT 1`,
+		ts, te,
 	).Scan(&angelClient, &angelAuth, &angelFeed, &angelKey)
 
 	if aliceSession != "" {
 		if err := aliceblue.CreateWsSession(aliceSession, aliceClientID, "", ""); err != nil {
-			log.Printf("aliceblue createWsSession: %v", err)
+			log.Printf("aliceblue createWsSession: %v, falling back to angel", err)
+			goto tryAngel
 		}
 		s.Hub.StartAliceBroker(aliceSession, aliceClientID, tokenSymbol, symbols)
 		log.Printf("auto-start: aliceblue broker stream")
-	} else if angelAuth != "" {
+		return
+	}
+
+tryAngel:
+	if angelAuth != "" {
 		s.Hub.StartBroker(angelClient, angelAuth, angelFeed, angelKey, tokenSymbol, symbols)
 		log.Printf("auto-start: angel broker stream")
 	}
@@ -251,6 +266,10 @@ type responseWriter struct {
 func (rw *responseWriter) WriteHeader(code int) {
 	rw.statusCode = code
 	rw.ResponseWriter.WriteHeader(code)
+}
+
+func (rw *responseWriter) Hijack() (net.Conn, *bufio.ReadWriter, error) {
+	return rw.ResponseWriter.(http.Hijacker).Hijack()
 }
 
 func (s *Server) corsMiddleware(next http.Handler) http.Handler {
