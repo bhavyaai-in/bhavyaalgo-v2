@@ -82,9 +82,10 @@ async function loadExchanges() {
 }
 
 async function loadUnderlyings() {
-  if (!selectedExchange.value) return
+  const ex = typeof selectedExchange.value === 'object' ? selectedExchange.value.code : selectedExchange.value
+  if (!ex) return
   try {
-    underlyings.value = await api(`/api/historical/underlyings?exchange=${selectedExchange.value}`)
+    underlyings.value = await api(`/api/historical/underlyings?exchange=${ex}`)
     // Set NIFTY as default if available
     if (underlyings.value.includes('NIFTY')) selectedSymbol.value = 'NIFTY'
     else if (underlyings.value.length > 0) selectedSymbol.value = underlyings.value[0]
@@ -103,7 +104,7 @@ async function download() {
       method: 'POST',
       body: JSON.stringify({
         symbol: selectedSymbol.value,
-        exchange: selectedExchange.value,
+        exchange: typeof selectedExchange.value === 'object' ? selectedExchange.value.code : selectedExchange.value,
         interval: selectedInterval.value,
         from: fromDate.value + ' 09:15',
         to: toDate.value + ' 15:30',
@@ -128,7 +129,11 @@ function exchLabel(ex) {
   return ex
 }
 
-onMounted(() => { loadExchanges(); updateDateRange() })
+onMounted(async () => { 
+  await loadExchanges()
+  loadUnderlyings()
+  updateDateRange() 
+})
 
 function formatPrice(v) { return Number(v).toFixed(2) }
 function formatVol(v) { return v >= 100000 ? (v/100000).toFixed(1)+'L' : v >= 1000 ? (v/1000).toFixed(1)+'K' : String(v) }
