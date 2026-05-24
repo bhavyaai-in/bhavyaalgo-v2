@@ -152,6 +152,9 @@ function changeClass(v) { return v > 0 ? 'up' : v < 0 ? 'down' : '' }
     </div>
 
     <div v-if="error" class="error">{{ error }}</div>
+    <div v-if="candles.length === 0 && !loading && fromDate && selectedSymbol && selectedExchange && !error" class="warning">
+      No data returned. Index symbols (NIFTY, BANKNIFTY etc.) may not support historical download. Try a stock symbol like RELIANCE or TCS.
+    </div>
 
     <div v-if="candles.length" class="stats">
       <div class="card"><span class="card-label">Records</span><span class="card-value">{{ stats.count }}</span></div>
@@ -212,4 +215,5 @@ th { font-weight:600; font-size:var(--font-xs); color:hsl(var(--muted-foreground
 .vol { color:hsl(var(--muted-foreground)); }
 tr:hover td { background:hsl(var(--muted)/.3); }
 .error { color:hsl(var(--destructive)); margin-bottom:.5rem; }
+.warning { color:hsl(var(--warning, 38 92% 50%)); margin-bottom:.5rem; font-size:var(--font-sm); padding:.5rem; background:hsl(var(--card)); border:1px solid hsl(var(--warning, 38 92% 50%)/.3); border-radius:var(--radius); }
 </style>

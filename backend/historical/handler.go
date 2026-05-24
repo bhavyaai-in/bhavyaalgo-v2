@@ -160,6 +160,19 @@ func (h *Handler) download(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, err.Error(), 500)
 		return
 	}
+	if candles == nil || len(candles) == 0 {
+		// Check if this is an index (AMXIDX type) - historical data not supported for indices
+		var instType string
+		h.MarketDB.QueryRow("SELECT instrumenttype FROM master_contracts WHERE symbol = ? AND exchange = ? LIMIT 1", req.Symbol, req.Exchange).Scan(&instType)
+		if instType == "AMXIDX" {
+			writeJSON(w, 200, map[string]any{
+				"symbol": req.Symbol, "exchange": req.Exchange, "interval": req.Interval,
+				"from": req.From, "to": req.To, "count": 0, "candles": []Candle{},
+				"warning": "Historical data not available for index symbols. Only stock/equity instruments are supported.",
+			})
+			return
+		}
+	}
 	if candles == nil {
 		candles = []Candle{}
 	}
