@@ -563,19 +563,26 @@ func parseAliceQuote(m map[string]any) quoteResult {
 
 func (a *App) getUnderlyingPrice(ctx context.Context, symbol, exchange string) (float64, float64, error) {
 	// Try exact exchange first, then try NSE for indices, then try any exchange
+	// Exclude options (OPT*) and futures (FUT*) — only get the underlying contract
 	var token, brExchange string
 	err := a.MarketDB.QueryRowContext(ctx,
-		`SELECT token, brexchange FROM master_contracts WHERE symbol = ? AND (exchange = ? OR exchange = ?) AND instrumenttype != '' LIMIT 1`,
+		`SELECT token, brexchange FROM master_contracts
+		 WHERE symbol = ? AND (exchange = ? OR exchange = ?)
+		 AND instrumenttype NOT LIKE 'OPT%' AND instrumenttype NOT LIKE 'FUT%'
+		 LIMIT 1`,
 		symbol, exchange, strings.TrimSuffix(exchange, "_INDEX"),
 	).Scan(&token, &brExchange)
 	if err != nil {
-		// Broader fallback
+		// Broader fallback — any non-option/future row
 		err = a.MarketDB.QueryRowContext(ctx,
-			`SELECT token, brexchange FROM master_contracts WHERE symbol = ? LIMIT 1`,
+			`SELECT token, brexchange FROM master_contracts
+			 WHERE symbol = ? AND instrumenttype NOT LIKE 'OPT%' AND instrumenttype NOT LIKE 'FUT%'
+			 LIMIT 1`,
 			symbol,
 		).Scan(&token, &brExchange)
 		if err != nil {
-			return 0, 0, fmt.Errorf("no master contract found for %s", symbol)
+			// Last resort: check if it's a known NSE index with a well-known token
+			return a.getIndexPrice(ctx, symbol)
 		}
 	}
 	// For index tokens, use the brexchange from DB (e.g. "NSE" for NIFTY)
@@ -614,9 +621,14 @@ func (a *App) getUnderlyingPrice(ctx context.Context, symbol, exchange string) (
 		var apiKey, apiSecret string
 		a.TradingDB.QueryRowContext(ctx, `SELECT broker_api, broker_api_secret FROM brokers WHERE id = ?`, brokerID).Scan(&apiKey, &apiSecret)
 		ac := aliceblue.NewClient(apiKey, apiSecret)
-		resp, err := ac.GetQuote(brokerToken, quoteExchange, symbol, token)
+		// Alice Blue may accept symbol (exchange:symbol) instead of token
+		resp, err := ac.GetQuote(brokerToken, quoteExchange, symbol, symbol)
 		if err != nil {
-			return 0, 0, err
+			resp2, err2 := ac.GetQuote(brokerToken, quoteExchange, symbol, token)
+			if err2 != nil {
+				return 0, 0, err2
+			}
+			resp = resp2
 		}
 		q := parseAliceQuote(resp)
 		ltp = q.ltp
@@ -629,6 +641,62 @@ func (a *App) getUnderlyingPrice(ctx context.Context, symbol, exchange string) (
 		return 0, 0, fmt.Errorf("failed to fetch LTP for %s", symbol)
 	}
 	return ltp, closeP, nil
+}
+
+// Known NSE index tokens (Angel tokens) for underlying price lookup
+var knownIndexTokens = map[string]string{
+	"NIFTY":     "99926000",
+	"BANKNIFTY": "99926009",
+	"FINNIFTY":  "99926037",
+	"MIDCPNIFTY": "99926060",
+	"NIFTYNXT50": "99926014",
+	"SENSEX":     "99919001",
+	"SENSEX50":   "99919007",
+	"BANKEX":     "99919012",
+	"NIFTYIT":    "99926012",
+	"NIFTYPHARMA": "99926025",
+	"NIFTYBANK":  "99926015",
+}
+
+func (a *App) getIndexPrice(ctx context.Context, symbol string) (float64, float64, error) {
+	token, ok := knownIndexTokens[symbol]
+	if !ok {
+		return 0, 0, fmt.Errorf("no known token for %s", symbol)
+	}
+	brokerRow := a.TradingDB.QueryRowContext(ctx,
+		`SELECT broker_name, broker_token, broker_api, broker_api_secret FROM brokers WHERE token_status='connected' LIMIT 1`)
+	var brokerName, brokerToken, brokerAPI, brokerAPISecret string
+	if err := brokerRow.Scan(&brokerName, &brokerToken, &brokerAPI, &brokerAPISecret); err != nil {
+		return 0, 0, fmt.Errorf("no connected broker")
+	}
+
+	switch brokerName {
+	case "angel":
+		ac := angel.NewClient(brokerAPI)
+		resp, err := ac.GetQuote(brokerToken, "NSE", symbol, token)
+		if err != nil {
+			return 0, 0, err
+		}
+		if fetched, ok := resp["data"].([]any); ok && len(fetched) > 0 {
+			if m, ok := fetched[0].(map[string]any); ok {
+				q := parseAngelQuote(m)
+				return q.ltp, q.close, nil
+			}
+		}
+	case "aliceblue":
+		ac := aliceblue.NewClient(brokerAPI, brokerAPISecret)
+		// Use symbol instead of token for Alice Blue (cross-broker compat)
+		resp, err := ac.GetQuote(brokerToken, "NSE", symbol, symbol)
+		if err != nil {
+			resp, err = ac.GetQuote(brokerToken, "NSE", symbol, token)
+			if err != nil {
+				return 0, 0, err
+			}
+		}
+		q := parseAliceQuote(resp)
+		return q.ltp, q.close, nil
+	}
+	return 0, 0, fmt.Errorf("unable to fetch index price for %s", symbol)
 }
 
 func findATMStrike(ltp float64, strikes []float64) float64 {

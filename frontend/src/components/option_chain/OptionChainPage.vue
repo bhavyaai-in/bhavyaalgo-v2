@@ -11,6 +11,8 @@ const underlyings = ref([])
 const selectedUnderlying = ref('')
 const underlyingSearch = ref('')
 const underlyingOpen = ref(false)
+const underlyingInput = ref(null)
+const highlightIdx = ref(0)
 const expiries = ref([])
 const selectedExpiry = ref('')
 const strikeCount = ref(10)
@@ -33,13 +35,44 @@ ws.onTick((tick) => {
 
 const strikeCounts = [5, 10, 15, 20, 25]
 
+watch(underlyingSearch, () => { highlightIdx.value = 0 })
+
 const filteredUnderlyings = computed(() => {
   if (!underlyingSearch.value) return underlyings.value
   const q = underlyingSearch.value.toUpperCase()
-  return underlyings.value.filter(u => u.includes(q) || u.includes(underlyingSearch.value))
+  const matches = underlyings.value.filter(u => u.toUpperCase().includes(q))
+  // Sort: exact prefix match first, then alphabetical
+  matches.sort((a, b) => {
+    const pa = a.toUpperCase().startsWith(q)
+    const pb = b.toUpperCase().startsWith(q)
+    if (pa !== pb) return pa ? -1 : 1
+    return a < b ? -1 : 1
+  })
+  return matches
 })
 
-function toggleUnderlying() { underlyingOpen.value = !underlyingOpen.value; if (underlyingOpen.value) underlyingSearch.value = '' }
+function toggleUnderlying() {
+  underlyingOpen.value = !underlyingOpen.value
+  if (underlyingOpen.value) {
+    underlyingSearch.value = ''
+    highlightIdx.value = 0
+    setTimeout(() => underlyingInput.value?.focus(), 100)
+  }
+}
+
+function onKeydown(e) {
+  if (e.key === 'ArrowDown') {
+    e.preventDefault()
+    if (highlightIdx.value < filteredUnderlyings.value.length - 1) highlightIdx.value++
+  } else if (e.key === 'ArrowUp') {
+    e.preventDefault()
+    if (highlightIdx.value > 0) highlightIdx.value--
+  } else if (e.key === 'Enter' || e.key === 'Tab') {
+    if (filteredUnderlyings.value.length > 0) {
+      selectUnderlying(filteredUnderlyings.value[highlightIdx.value])
+    }
+  }
+}
 function selectUnderlying(u) {
   selectedUnderlying.value = u
   underlyingSearch.value = ''
@@ -167,11 +200,13 @@ function changeClass(item, side, strike) {
         <option v-for="ex in exchanges" :key="ex" :value="ex">{{ ex }}</option>
       </select>
       <div class="search-wrap">
-        <button class="search-btn" @click="toggleUnderlying">{{ selectedUnderlying || 'Select underlying...' }} <span class="arrow">▾</span></button>
-        <div v-if="underlyingOpen" class="search-dropdown">
-          <input v-model="underlyingSearch" placeholder="Search..." class="search-input" autofocus />
-          <div v-for="u in filteredUnderlyings" :key="u" class="search-item" @mousedown="selectUnderlying(u)">{{ u }}</div>
-          <div v-if="!filteredUnderlyings.length" class="search-empty">No matches</div>
+        <input v-if="underlyingOpen" ref="underlyingInput" v-model="underlyingSearch" placeholder="Search underlying..." class="search-input" @blur="setTimeout(() => underlyingOpen = false, 200)" @keydown="onKeydown" />
+        <button v-else class="search-btn" @click="toggleUnderlying">{{ selectedUnderlying || 'Select underlying...' }} <span class="arrow">▾</span></button>
+        <div v-if="underlyingOpen && filteredUnderlyings.length" class="search-dropdown">
+          <div v-for="(u, i) in filteredUnderlyings" :key="u" class="search-item" :class="{ highlighted: i === highlightIdx }" @mousedown="selectUnderlying(u)" @mouseenter="highlightIdx = i">{{ u }}</div>
+        </div>
+        <div v-if="underlyingOpen && !filteredUnderlyings.length" class="search-dropdown">
+          <div class="search-empty">No matches</div>
         </div>
       </div>
       <select v-model="selectedExpiry" @change="loadChain">
@@ -262,28 +297,36 @@ header { margin-bottom:1rem; }
 header h2 { margin:0; }
 
 .controls { display:flex; flex-wrap:wrap; gap:.5rem; margin-bottom:1rem; align-items:center; }
-.controls select, .controls button, .search-btn {
+.controls select, .controls button {
   padding:.4rem .6rem; border:1px solid hsl(var(--input)); border-radius:var(--radius);
   font-size:var(--font-sm); background:hsl(var(--card)); outline:none;
 }
-.controls select:focus, .search-input:focus { border-color:hsl(var(--ring)); }
+.controls select:focus { border-color:hsl(var(--ring)); }
 .search-wrap { position:relative; min-width:160px; }
-.search-btn { display:flex; align-items:center; gap:4px; cursor:pointer; color:hsl(var(--foreground)); }
-.search-btn .arrow { font-size:10px; color:hsl(var(--muted-foreground)); }
+.search-btn {
+  display:flex; align-items:center; gap:4px; cursor:pointer; color:hsl(var(--foreground));
+  padding:.4rem .6rem; border:1px solid hsl(var(--input)); border-radius:var(--radius);
+  font-size:var(--font-sm); background:hsl(var(--card)); outline:none; width:100%;
+}
+.search-btn .arrow { font-size:10px; color:hsl(var(--muted-foreground)); margin-left:auto; }
+.search-input {
+  padding:.4rem .6rem; border:1px solid hsl(var(--input)); border-radius:var(--radius);
+  font-size:var(--font-sm); background:hsl(var(--card)); outline:none; width:100%;
+  box-sizing:border-box;
+}
+.search-input:focus { border-color:hsl(var(--ring)); }
 .search-dropdown {
   position:absolute; top:100%; left:0; right:0; z-index:20;
   background:hsl(var(--card)); border:1px solid hsl(var(--border)); border-radius:var(--radius);
-  box-shadow:0 4px 12px rgba(0,0,0,.1); margin-top:2px; padding:4px;
+  box-shadow:0 4px 12px rgba(0,0,0,.1); margin-top:2px;
 }
-.search-input {
-  width:100%; padding:.35rem .5rem; border:1px solid hsl(var(--input)); border-radius:var(--radius);
-  font-size:var(--font-sm); background:hsl(var(--card)); outline:none; margin-bottom:4px; box-sizing:border-box;
-}
+
 .search-list { max-height:200px; overflow-y:auto; }
 .search-item {
   padding:.35rem .5rem; cursor:pointer; font-size:var(--font-sm); color:hsl(var(--foreground)); border-radius:4px;
 }
 .search-item:hover { background:hsl(var(--muted)); }
+.search-item.highlighted { background:hsl(var(--primary)/.15); }
 .search-empty { padding:.5rem; text-align:center; font-size:var(--font-sm); color:hsl(var(--muted-foreground)); }
 .controls .chip { padding:.35rem .65rem; font-size:var(--font-sm); }
 .chip {
