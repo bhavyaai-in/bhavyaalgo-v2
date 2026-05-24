@@ -429,13 +429,18 @@ func (a *App) fetchOptionQuotes(ctx context.Context, symbols []symAndTok, exchan
 		if err != nil {
 			return nil, err
 		}
-		if fetched, ok := resp["data"].([]any); ok {
-			for _, item := range fetched {
-				if m, ok := item.(map[string]any); ok {
-					q := parseAngelQuote(m)
-					if q.ltp > 0 {
-						if tok, ok := m["symbolToken"].(string); ok {
-							result[tok] = q
+		if dataMap, ok := resp["data"].(map[string]any); ok {
+			if fetched, ok := dataMap["fetched"].([]any); ok {
+				for _, item := range fetched {
+					if m, ok := item.(map[string]any); ok {
+						q := parseAngelQuote(m)
+						if q.ltp > 0 {
+							if sym, ok := m["tradingSymbol"].(string); ok {
+								result[sym] = q
+							}
+							if tok, ok := m["symbolToken"]; ok {
+								result[fmt.Sprintf("%v", tok)] = q
+							}
 						}
 					}
 				}
@@ -499,19 +504,46 @@ func parseAngelQuote(m map[string]any) quoteResult {
 		}
 		return 0
 	}
+	// Extract bid/ask from depth if available
+	var bid, ask float64
+	if depth, ok := m["depth"].(map[string]any); ok {
+		if buy, ok := depth["buy"].([]any); ok && len(buy) > 0 {
+			if first, ok := buy[0].(map[string]any); ok {
+				bid = fFrom(first, "price")
+			}
+		}
+		if sell, ok := depth["sell"].([]any); ok && len(sell) > 0 {
+			if first, ok := sell[0].(map[string]any); ok {
+				ask = fFrom(first, "price")
+			}
+		}
+	}
 	return quoteResult{
 		ltp:    f("ltp"),
-		bid:    f("bid"),
-		ask:    f("ask"),
-		bidQty: i("bid_qty"),
-		askQty: i("ask_qty"),
+		bid:    bid,
+		ask:    ask,
+		bidQty: i("totBuyQuan"),
+		askQty: i("totSellQuan"),
 		open:   f("open"),
 		high:   f("high"),
 		low:    f("low"),
 		close:  f("close"),
-		volume: i("volume"),
-		oi:     i("oi"),
+		volume: i("tradeVolume"),
+		oi:     i("opnInterest"),
 	}
+}
+
+func fFrom(m map[string]any, key string) float64 {
+	if v, ok := m[key]; ok {
+		switch val := v.(type) {
+		case string:
+			f, _ := strconv.ParseFloat(val, 64)
+			return f
+		case float64:
+			return val
+		}
+	}
+	return 0
 }
 
 func parseAliceQuote(m map[string]any) quoteResult {
@@ -610,11 +642,13 @@ func (a *App) getUnderlyingPrice(ctx context.Context, symbol, exchange string) (
 		if err != nil {
 			return 0, 0, err
 		}
-		if fetched, ok := resp["data"].([]any); ok && len(fetched) > 0 {
-			if m, ok := fetched[0].(map[string]any); ok {
-				q := parseAngelQuote(m)
-				ltp = q.ltp
-				closeP = q.close
+		if dm, ok := resp["data"].(map[string]any); ok {
+			if fetched, ok := dm["fetched"].([]any); ok && len(fetched) > 0 {
+				if m, ok := fetched[0].(map[string]any); ok {
+					q := parseAngelQuote(m)
+					ltp = q.ltp
+					closeP = q.close
+				}
 			}
 		}
 	case "aliceblue":
@@ -677,10 +711,12 @@ func (a *App) getIndexPrice(ctx context.Context, symbol string) (float64, float6
 		if err != nil {
 			return 0, 0, err
 		}
-		if fetched, ok := resp["data"].([]any); ok && len(fetched) > 0 {
-			if m, ok := fetched[0].(map[string]any); ok {
-				q := parseAngelQuote(m)
-				return q.ltp, q.close, nil
+		if dm, ok := resp["data"].(map[string]any); ok {
+			if fetched, ok := dm["fetched"].([]any); ok && len(fetched) > 0 {
+				if m, ok := fetched[0].(map[string]any); ok {
+					q := parseAngelQuote(m)
+					return q.ltp, q.close, nil
+				}
 			}
 		}
 	case "aliceblue":
