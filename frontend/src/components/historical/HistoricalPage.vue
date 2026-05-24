@@ -64,8 +64,8 @@ function updateDateRange() {
   
   // Max days back based on interval (approximate)
   const maxDays = {
-    '1m': 7, '3m': 15, '5m': 30, '10m': 45, '15m': 60,
-    '30m': 90, '1h': 180, '1d': 730  // 2 years for daily
+    '1m': 30, '3m': 60, '5m': 100, '10m': 100, '15m': 200,
+    '30m': 200, '1h': 400, '1d': 2000  // Angel API max days per interval
   }
   const days = maxDays[selectedInterval.value] || 7
   const from = new Date(now.getTime() - days * 24 * 60 * 60 * 1000)
@@ -162,7 +162,7 @@ function changeClass(v) { return v > 0 ? 'up' : v < 0 ? 'down' : '' }
 
     <div v-if="error" class="error">{{ error }}</div>
     <div v-if="candles.length === 0 && !loading && fromDate && selectedSymbol && selectedExchange && !error" class="warning">
-      No data returned. Index symbols (NIFTY, BANKNIFTY etc.) may not support historical download. Try a stock symbol like RELIANCE or TCS.
+      No data returned. Try a different date range or symbol.
     </div>
 
     <div v-if="candles.length" class="stats">
