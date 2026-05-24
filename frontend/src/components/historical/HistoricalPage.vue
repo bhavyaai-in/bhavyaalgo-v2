@@ -86,9 +86,6 @@ async function loadUnderlyings(q) {
   try {
     const url = q ? `/api/historical/underlyings?exchange=${ex}&q=${encodeURIComponent(q)}` : `/api/historical/underlyings?exchange=${ex}`
     underlyings.value = await api(url)
-    // Set NIFTY as default if available
-    if (underlyings.value.includes('NIFTY')) selectedSymbol.value = 'NIFTY'
-    else if (underlyings.value.length > 0) selectedSymbol.value = underlyings.value[0]
   } catch {
     underlyings.value = []
   }
