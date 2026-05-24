@@ -21,7 +21,11 @@ export async function api(path, opts = {}) {
     })
     if (res.status === 401) {
       localStorage.removeItem('token')
-      if (router) router.push('/login')
+      if (router) {
+        const currentPath = router.currentRoute?.value?.fullPath || '/'
+        if (currentPath !== '/login') localStorage.setItem('redirect_path', currentPath)
+        router.push('/login')
+      }
       throw new Error('Session expired')
     }
     if (!res.ok) throw new Error(await res.text())

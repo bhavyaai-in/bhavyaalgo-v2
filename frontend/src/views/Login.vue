@@ -16,7 +16,9 @@ async function handleSubmit() {
   submitting.value = true
   try {
     await auth.login(email.value, password.value)
-    router.push('/')
+    const redirect = localStorage.getItem('redirect_path') || '/'
+    localStorage.removeItem('redirect_path')
+    router.push(redirect)
   } catch (e) {
     error.value = e.message
   } finally {
