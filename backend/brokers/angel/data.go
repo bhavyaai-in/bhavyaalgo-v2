@@ -3,6 +3,7 @@ package angel
 import (
 	"encoding/json"
 	"fmt"
+	"strconv"
 )
 
 type Candle struct {
@@ -15,16 +16,16 @@ type Candle struct {
 }
 
 type historicalResponse struct {
-	Data []historicalCandle `json:"data"`
+	Data [][]any `json:"data"`
 }
 
 type historicalCandle struct {
-	Timestamp string `json:"timestamp"`
-	Open      string `json:"open"`
-	High      string `json:"high"`
-	Low       string `json:"low"`
-	Close     string `json:"close"`
-	Volume    int    `json:"volume"`
+	Timestamp string
+	Open      float64
+	High      float64
+	Low       float64
+	Close     float64
+	Volume    int
 }
 
 var TimeframeMap = map[string]string{
@@ -35,6 +36,7 @@ var TimeframeMap = map[string]string{
 	"15m": "FIFTEEN_MINUTE",
 	"30m": "THIRTY_MINUTE",
 	"1h":  "ONE_HOUR",
+	"1d":  "ONE_DAY",
 }
 
 func (c *Client) GetHistoricalData(authToken, symbol, exchange, interval, from, to string) ([]Candle, error) {
@@ -59,15 +61,38 @@ func (c *Client) GetHistoricalData(authToken, symbol, exchange, interval, from, 
 		return nil, fmt.Errorf("failed to parse historical data: %w", err)
 	}
 	candles := make([]Candle, 0, len(resp.Data))
-	for _, c := range resp.Data {
-		candles = append(candles, Candle{
-			Timestamp: c.Timestamp,
-			Open:      parseFloat(c.Open),
-			High:      parseFloat(c.High),
-			Low:       parseFloat(c.Low),
-			Close:     parseFloat(c.Close),
-			Volume:    c.Volume,
-		})
+	for _, row := range resp.Data {
+		if len(row) < 6 {
+			continue
+		}
+		var ts string
+		var o, h, l, c, v float64
+		if t, ok := row[0].(string); ok {
+			ts = t
+		} else if t, ok := row[0].(float64); ok {
+			ts = fmt.Sprintf("%v", t)
+		}
+		if val, ok := toFloat(row[1]); ok { o = val }
+		if val, ok := toFloat(row[2]); ok { h = val }
+		if val, ok := toFloat(row[3]); ok { l = val }
+		if val, ok := toFloat(row[4]); ok { c = val }
+		if val, ok := toFloat(row[5]); ok { v = val }
+		candles = append(candles, Candle{Timestamp: ts, Open: o, High: h, Low: l, Close: c, Volume: int(v)})
 	}
 	return candles, nil
+}
+
+func toFloat(val any) (float64, bool) {
+	switch v := val.(type) {
+	case float64:
+		return v, true
+	case string:
+		f, err := strconv.ParseFloat(v, 64)
+		return f, err == nil
+	case json.Number:
+		f, err := v.Float64()
+		return f, err == nil
+	default:
+		return 0, false
+	}
 }

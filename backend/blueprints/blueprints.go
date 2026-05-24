@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"runtime/debug"
 
+	"bhavyaaialgo/backend/historical"
 	marketdb "bhavyaaialgo/backend/db/market/gen"
 	tradingdb "bhavyaaialgo/backend/db/trading/gen"
 	"bhavyaaialgo/backend/internal/httperr"
@@ -60,4 +61,9 @@ func recoverHandler(next http.HandlerFunc) http.HandlerFunc {
 		}()
 		next(w, r)
 	}
+}
+
+func (a *App) RegisterHistoricalRoutes(mux *http.ServeMux) {
+	h := &historical.Handler{MarketDB: a.MarketDB, TradingDB: a.TradingDB}
+	h.RegisterRoutes(mux)
 }

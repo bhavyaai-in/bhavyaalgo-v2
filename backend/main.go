@@ -67,6 +67,7 @@ func main() {
 	app.RegisterWatchlistRoutes(srv.Mux())
 	app.RegisterStrategyRoutes(srv.Mux())
 	app.RegisterOptionChainRoutes(srv.Mux())
+	app.RegisterHistoricalRoutes(srv.Mux())
 	app.RegisterSettingsRoutes(srv.Mux())
 
 	if err := srv.Run(); err != nil {
