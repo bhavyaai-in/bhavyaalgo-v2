@@ -1,0 +1,20 @@
+{
+  "angel": [
+    {"endpoint": "/rest/auth/angelbroking/user/v1/loginByPassword", "per_sec": 1, "per_min": 0, "per_hour": 0},
+    {"endpoint": "/rest/auth/angelbroking/jwt/v1/generateTokens", "per_sec": 1, "per_min": 0, "per_hour": 1000},
+    {"endpoint": "/rest/secure/angelbroking/user/v1/getProfile", "per_sec": 3, "per_min": 0, "per_hour": 1000},
+    {"endpoint": "/rest/secure/angelbroking/user/v1/logout", "per_sec": 1, "per_min": 0, "per_hour": 0},
+    {"endpoint": "/rest/secure/angelbroking/user/v1/getRMS", "per_sec": 2, "per_min": 0, "per_hour": 0},
+    {"endpoint": "/rest/secure/angelbroking/order/v1/placeOrder", "per_sec": 9, "per_min": 500, "per_hour": 1000},
+    {"endpoint": "/rest/secure/angelbroking/order/v1/modifyOrder", "per_sec": 9, "per_min": 500, "per_hour": 1000},
+    {"endpoint": "/rest/secure/angelbroking/order/v1/cancelOrder", "per_sec": 9, "per_min": 500, "per_hour": 1000},
+    {"endpoint": "/rest/secure/angelbroking/order/v1/getOrderBook", "per_sec": 1, "per_min": 0, "per_hour": 0},
+    {"endpoint": "/rest/secure/angelbroking/order/v1/getPosition", "per_sec": 1, "per_min": 0, "per_hour": 0},
+    {"endpoint": "/rest/secure/angelbroking/market/v1/quote", "per_sec": 10, "per_min": 500, "per_hour": 5000},
+    {"endpoint": "/rest/secure/angelbroking/historical/v1/getCandleData", "per_sec": 3, "per_min": 180, "per_hour": 5000}
+  ],
+  "aliceblue": [
+    {"endpoint": "/open-api/od/ChartAPIService/api/chart/history", "per_sec": 2, "per_min": 0, "per_hour": 0},
+    {"endpoint": "/api/v2/market/quotes", "per_sec": 2, "per_min": 120, "per_hour": 0}
+  ]
+}

@@ -3,11 +3,11 @@ import { ref, computed, watch, onMounted } from 'vue'
 import { api } from '../../utils/api.js'
 
 const exchanges = ref([])
-const selectedExchange = ref('')
+const selectedExchange = ref('NSE')
 const underlyings = ref([])
-const selectedSymbol = ref('')
+const selectedSymbol = ref('NIFTY')
 const intervals = ['1m', '3m', '5m', '10m', '15m', '30m', '1h', '1d']
-const selectedInterval = ref('15m')
+const selectedInterval = ref('1d')
 const fromDate = ref('')
 const toDate = ref('')
 const loading = ref(false)
@@ -15,20 +15,69 @@ const candles = ref([])
 const stats = ref({ count: 0, price_change: 0 })
 const error = ref('')
 
-// Set default dates (last 7 days)
-function setDefaultDates() {
+// Searchable symbol dropdown
+const symbolSearch = ref('')
+const symbolOpen = ref(false)
+const symbolInput = ref(null)
+const highlightIdx = ref(0)
+
+const filteredSymbols = computed(() => {
+  if (!symbolSearch.value) return underlyings.value
+  const q = symbolSearch.value.toUpperCase()
+  const matches = underlyings.value.filter(u => u.toUpperCase().includes(q))
+  matches.sort((a, b) => {
+    const pa = a.toUpperCase().startsWith(q)
+    const pb = b.toUpperCase().startsWith(q)
+    if (pa !== pb) return pa ? -1 : 1
+    return a < b ? -1 : 1
+  })
+  return matches
+})
+
+function toggleSymbol() {
+  symbolOpen.value = !symbolOpen.value
+  if (symbolOpen.value) {
+    symbolSearch.value = ''
+    highlightIdx.value = 0
+    setTimeout(() => symbolInput.value?.focus(), 100)
+  }
+}
+
+function selectSymbol(s) {
+  selectedSymbol.value = s
+  symbolSearch.value = ''
+  symbolOpen.value = false
+}
+
+function onSymbolKeydown(e) {
+  if (e.key === 'ArrowDown') { e.preventDefault(); if (highlightIdx.value < filteredSymbols.value.length - 1) highlightIdx.value++ }
+  else if (e.key === 'ArrowUp') { e.preventDefault(); if (highlightIdx.value > 0) highlightIdx.value-- }
+  else if (e.key === 'Enter' || e.key === 'Tab') { e.preventDefault(); if (filteredSymbols.value.length) selectSymbol(filteredSymbols.value[highlightIdx.value]) }
+  else if (e.key === 'Escape') { symbolOpen.value = false }
+}
+
+// Calculate date range based on interval
+function updateDateRange() {
   const now = new Date()
   const to = now.toISOString().split('T')[0]
-  const from = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000).toISOString().split('T')[0]
-  fromDate.value = from
   toDate.value = to
+  
+  // Max days back based on interval (approximate)
+  const maxDays = {
+    '1m': 7, '3m': 15, '5m': 30, '10m': 45, '15m': 60,
+    '30m': 90, '1h': 180, '1d': 730  // 2 years for daily
+  }
+  const days = maxDays[selectedInterval.value] || 7
+  const from = new Date(now.getTime() - days * 24 * 60 * 60 * 1000)
+  fromDate.value = from.toISOString().split('T')[0]
 }
-setDefaultDates()
+
+watch(selectedInterval, updateDateRange)
 
 async function loadExchanges() {
   try {
     exchanges.value = await api('/api/historical/exchanges')
-    if (exchanges.value.length > 0) selectedExchange.value = exchanges.value[0]
+    if (exchanges.value.length > 0 && !selectedExchange.value) selectedExchange.value = exchanges.value[0]
   } catch {}
 }
 
@@ -36,7 +85,9 @@ async function loadUnderlyings() {
   if (!selectedExchange.value) return
   try {
     underlyings.value = await api(`/api/historical/underlyings?exchange=${selectedExchange.value}`)
-    if (underlyings.value.length > 0) selectedSymbol.value = underlyings.value[0]
+    // Set NIFTY as default if available
+    if (underlyings.value.includes('NIFTY')) selectedSymbol.value = 'NIFTY'
+    else if (underlyings.value.length > 0) selectedSymbol.value = underlyings.value[0]
   } catch {
     underlyings.value = []
   }
@@ -68,7 +119,7 @@ async function download() {
 }
 
 watch(selectedExchange, () => { loadUnderlyings() })
-onMounted(() => { loadExchanges() })
+onMounted(() => { loadExchanges(); updateDateRange() })
 
 function formatPrice(v) { return Number(v).toFixed(2) }
 function formatVol(v) { return v >= 100000 ? (v/100000).toFixed(1)+'L' : v >= 1000 ? (v/1000).toFixed(1)+'K' : String(v) }
@@ -81,13 +132,17 @@ function changeClass(v) { return v > 0 ? 'up' : v < 0 ? 'down' : '' }
 
     <div class="controls">
       <select v-model="selectedExchange">
-        <option value="">Select exchange</option>
         <option v-for="e in exchanges" :key="e" :value="e">{{ e }}</option>
       </select>
-      <select v-model="selectedSymbol">
-        <option value="">Select symbol</option>
-        <option v-for="s in underlyings" :key="s" :value="s">{{ s }}</option>
-      </select>
+
+      <div class="search-wrap">
+        <button v-if="!symbolOpen" class="search-btn" @click="toggleSymbol">{{ selectedSymbol || 'Select symbol...' }} <span class="arrow">▾</span></button>
+        <input v-else ref="symbolInput" v-model="symbolSearch" placeholder="Search symbol..." class="search-input" @blur="setTimeout(() => symbolOpen = false, 200)" @keydown="onSymbolKeydown" />
+        <div v-if="symbolOpen && filteredSymbols.length" class="search-dropdown">
+          <div v-for="(s, i) in filteredSymbols" :key="s" class="search-item" :class="{ highlighted: i === highlightIdx }" @mousedown="selectSymbol(s)" @mouseenter="highlightIdx = i">{{ s }}</div>
+        </div>
+      </div>
+
       <select v-model="selectedInterval">
         <option v-for="i in intervals" :key="i" :value="i">{{ i }}</option>
       </select>
@@ -99,33 +154,14 @@ function changeClass(v) { return v > 0 ? 'up' : v < 0 ? 'down' : '' }
     <div v-if="error" class="error">{{ error }}</div>
 
     <div v-if="candles.length" class="stats">
-      <div class="card">
-        <span class="card-label">Records</span>
-        <span class="card-value">{{ stats.count }}</span>
-      </div>
-      <div class="card">
-        <span class="card-label">Price Change</span>
-        <span class="card-value" :class="changeClass(stats.price_change)">{{ stats.price_change > 0 ? '+' : '' }}{{ formatPrice(stats.price_change) }}</span>
-      </div>
-      <div class="card">
-        <span class="card-label">{{ selectedSymbol }}</span>
-        <span class="card-value">{{ selectedInterval }}</span>
-        <span class="card-sub">{{ selectedExchange }}</span>
-      </div>
+      <div class="card"><span class="card-label">Records</span><span class="card-value">{{ stats.count }}</span></div>
+      <div class="card"><span class="card-label">Price Change</span><span class="card-value" :class="changeClass(stats.price_change)">{{ stats.price_change > 0 ? '+' : '' }}{{ formatPrice(stats.price_change) }}</span></div>
+      <div class="card"><span class="card-label">{{ selectedSymbol }}</span><span class="card-value">{{ selectedInterval }}</span><span class="card-sub">{{ selectedExchange }}</span></div>
     </div>
 
     <div v-if="candles.length" class="table-wrap">
       <table>
-        <thead>
-          <tr>
-            <th>Timestamp</th>
-            <th class="rt">Open</th>
-            <th class="rt">High</th>
-            <th class="rt">Low</th>
-            <th class="rt">Close</th>
-            <th class="rt">Volume</th>
-          </tr>
-        </thead>
+        <thead><tr><th>Timestamp</th><th class="rt">Open</th><th class="rt">High</th><th class="rt">Low</th><th class="rt">Close</th><th class="rt">Volume</th></tr></thead>
         <tbody>
           <tr v-for="c in candles" :key="c.timestamp">
             <td class="ts">{{ c.timestamp }}</td>
@@ -142,18 +178,24 @@ function changeClass(v) { return v > 0 ? 'up' : v < 0 ? 'down' : '' }
 </template>
 
 <style scoped>
-.page { }
+.page {}
 header h2 { margin:0 0 1rem; }
 .controls { display:flex; flex-wrap:wrap; gap:.5rem; margin-bottom:1rem; align-items:center; }
-.controls select, .controls button, .date-input {
-  padding:.35rem .55rem; border:1px solid hsl(var(--input)); border-radius:var(--radius);
-  font-size:var(--font-sm); background:hsl(var(--card)); outline:none;
-}
+.controls select, .date-input { padding:.35rem .55rem; border:1px solid hsl(var(--input)); border-radius:var(--radius); font-size:var(--font-sm); background:hsl(var(--card)); outline:none; }
 .controls label { display:flex; align-items:center; gap:4px; font-size:var(--font-sm); color:hsl(var(--muted-foreground)); }
 .date-input { width:140px; }
 .chip { padding:.25rem .6rem; border-radius:var(--radius); font-size:var(--font-xs); cursor:pointer; background:transparent; color:hsl(var(--muted-foreground)); border:1px solid hsl(var(--border)); }
 .chip.primary { background:hsl(var(--primary)); color:#fff; border-color:hsl(var(--primary)); font-weight:600; }
 .chip.primary:disabled { opacity:.5; cursor:not-allowed; }
+.search-wrap { position:relative; min-width:160px; }
+.search-btn { display:flex; align-items:center; gap:4px; cursor:pointer; color:hsl(var(--foreground)); padding:.35rem .55rem; border:1px solid hsl(var(--input)); border-radius:var(--radius); font-size:var(--font-sm); background:hsl(var(--card)); outline:none; width:100%; }
+.search-btn .arrow { font-size:10px; color:hsl(var(--muted-foreground)); margin-left:auto; }
+.search-input { padding:.35rem .55rem; border:1px solid hsl(var(--input)); border-radius:var(--radius); font-size:var(--font-sm); background:hsl(var(--card)); outline:none; width:100%; box-sizing:border-box; }
+.search-input:focus { border-color:hsl(var(--ring)); }
+.search-dropdown { position:absolute; top:100%; left:0; right:0; z-index:20; background:hsl(var(--card)); border:1px solid hsl(var(--border)); border-radius:var(--radius); box-shadow:0 4px 12px rgba(0,0,0,.1); margin-top:2px; max-height:240px; overflow-y:auto; }
+.search-item { padding:.35rem .55rem; cursor:pointer; font-size:var(--font-sm); color:hsl(var(--foreground)); }
+.search-item:hover { background:hsl(var(--muted)); }
+.search-item.highlighted { background:hsl(var(--primary)/.15); }
 .stats { display:flex; gap:.75rem; margin-bottom:1rem; flex-wrap:wrap; }
 .card { flex:1; min-width:120px; background:hsl(var(--card)); border:1px solid hsl(var(--border)); border-radius:var(--radius); padding:.6rem .8rem; display:flex; flex-direction:column; gap:2px; }
 .card-label { font-size:var(--font-xs); color:hsl(var(--muted-foreground)); }

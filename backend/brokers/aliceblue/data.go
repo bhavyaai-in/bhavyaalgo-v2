@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"strconv"
+	"time"
 )
 
 type Candle struct {
@@ -21,11 +22,28 @@ type historicalResponse struct {
 }
 
 func (c *Client) GetHistoricalData(sessionToken, token, resolution, from, to, exchange string) ([]Candle, error) {
+	// Convert time strings to millisecond timestamps
+	layout := "2006-01-02 15:04"
+	fromTime, err1 := time.Parse(layout, from)
+	toTime, err2 := time.Parse(layout, to)
+	fromMs := from
+	toMs := to
+	if err1 == nil && err2 == nil {
+		fromMs = strconv.FormatInt(fromTime.UnixMilli(), 10)
+		toMs = strconv.FormatInt(toTime.UnixMilli(), 10)
+	}
+	// Convert resolution: "1d" -> "D", "1m" -> "1", "5m" -> "5", etc.
+	aliceRes := resolution
+	if resolution == "1d" {
+		aliceRes = "D"
+	} else if len(resolution) > 1 && resolution[len(resolution)-1] == 'm' {
+		aliceRes = resolution[:len(resolution)-1]
+	}
 	payload := map[string]string{
 		"token":      token,
-		"resolution": resolution,
-		"from":       from,
-		"to":         to,
+		"resolution": aliceRes,
+		"from":       fromMs,
+		"to":         toMs,
 		"exchange":   exchange,
 	}
 	body, _ := json.Marshal(payload)
