@@ -25,6 +25,18 @@ type Handler struct {
 
 var timeframes = []string{"1m", "3m", "5m", "10m", "15m", "30m", "1h", "1d"}
 
+var exchangeNames = map[string]string{
+	"NSE":    "NSE Stocks and Indices",
+	"NFO":    "NSE Futures and Options",
+	"BSE":    "BSE Stocks",
+	"BFO":    "BSE Futures and Options",
+	"MCX":    "MCX Commodity Derivatives",
+	"CDS":    "Currency Derivatives",
+	"NCDEX":  "NCDEX Commodity Derivatives",
+	"NCO":    "NSE Currency Options",
+	"BCD":    "BSE Commodity Derivatives",
+}
+
 var angelTimeframes = map[string]string{
 	"1m": "ONE_MINUTE", "3m": "THREE_MINUTE", "5m": "FIVE_MINUTE",
 	"10m": "TEN_MINUTE", "15m": "FIFTEEN_MINUTE", "30m": "THIRTY_MINUTE",
@@ -49,11 +61,19 @@ func (h *Handler) listExchanges(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	defer rows.Close()
-	var exchanges []string
+	type exchInfo struct {
+		Code string `json:"code"`
+		Name string `json:"name"`
+	}
+	var exchanges []exchInfo
 	for rows.Next() {
 		var ex string
 		if rows.Scan(&ex) == nil && ex != "" {
-			exchanges = append(exchanges, ex)
+			name := exchangeNames[ex]
+			if name == "" {
+				name = ex
+			}
+			exchanges = append(exchanges, exchInfo{ex, name})
 		}
 	}
 	writeJSON(w, 200, exchanges)

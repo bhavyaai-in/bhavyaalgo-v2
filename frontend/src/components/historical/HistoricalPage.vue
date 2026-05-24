@@ -119,6 +119,15 @@ async function download() {
 }
 
 watch(selectedExchange, () => { loadUnderlyings() })
+function exchDisplay(ex) {
+  if (typeof ex === 'object') return ex.code
+  return ex
+}
+function exchLabel(ex) {
+  if (typeof ex === 'object') return ex.name
+  return ex
+}
+
 onMounted(() => { loadExchanges(); updateDateRange() })
 
 function formatPrice(v) { return Number(v).toFixed(2) }
@@ -132,7 +141,7 @@ function changeClass(v) { return v > 0 ? 'up' : v < 0 ? 'down' : '' }
 
     <div class="controls">
       <select v-model="selectedExchange">
-        <option v-for="e in exchanges" :key="e" :value="e">{{ e }}</option>
+        <option v-for="e in exchanges" :key="exchDisplay(e)" :value="exchDisplay(e)">{{ exchLabel(e) }}</option>
       </select>
 
       <div class="search-wrap">
