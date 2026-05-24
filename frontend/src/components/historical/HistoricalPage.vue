@@ -21,17 +21,16 @@ const symbolOpen = ref(false)
 const symbolInput = ref(null)
 const highlightIdx = ref(0)
 
+// Debounced search
+let searchTimer
+watch(symbolSearch, (val) => {
+  clearTimeout(searchTimer)
+  if (!val) { loadUnderlyings(); return }
+  searchTimer = setTimeout(() => loadUnderlyings(val), 300)
+})
+
 const filteredSymbols = computed(() => {
-  if (!symbolSearch.value) return underlyings.value
-  const q = symbolSearch.value.toUpperCase()
-  const matches = underlyings.value.filter(u => u.toUpperCase().includes(q))
-  matches.sort((a, b) => {
-    const pa = a.toUpperCase().startsWith(q)
-    const pb = b.toUpperCase().startsWith(q)
-    if (pa !== pb) return pa ? -1 : 1
-    return a < b ? -1 : 1
-  })
-  return matches
+  return underlyings.value
 })
 
 function toggleSymbol() {
@@ -81,11 +80,12 @@ async function loadExchanges() {
   } catch {}
 }
 
-async function loadUnderlyings() {
+async function loadUnderlyings(q) {
   const ex = typeof selectedExchange.value === 'object' ? selectedExchange.value.code : selectedExchange.value
   if (!ex) return
   try {
-    underlyings.value = await api(`/api/historical/underlyings?exchange=${ex}`)
+    const url = q ? `/api/historical/underlyings?exchange=${ex}&q=${encodeURIComponent(q)}` : `/api/historical/underlyings?exchange=${ex}`
+    underlyings.value = await api(url)
     // Set NIFTY as default if available
     if (underlyings.value.includes('NIFTY')) selectedSymbol.value = 'NIFTY'
     else if (underlyings.value.length > 0) selectedSymbol.value = underlyings.value[0]

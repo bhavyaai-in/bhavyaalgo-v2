@@ -61,6 +61,10 @@ func (h *Handler) listExchanges(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, err.Error(), 500)
 		return
 	}
+	if err != nil {
+		http.Error(w, err.Error(), 500)
+		return
+	}
 	defer rows.Close()
 	type exchInfo struct {
 		Code string `json:"code"`
@@ -86,10 +90,21 @@ func (h *Handler) listUnderlyings(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "exchange required", 400)
 		return
 	}
-	rows, err := h.MarketDB.Query(
-		"SELECT DISTINCT symbol FROM master_contracts WHERE exchange = ? AND instrumenttype NOT LIKE 'OPT%' AND instrumenttype NOT LIKE 'FUT%' AND symbol NOT LIKE '%/%' AND LENGTH(symbol) < 20 AND symbol NOT LIKE '0%' AND symbol NOT LIKE '1%' AND symbol NOT LIKE '2%' AND symbol NOT LIKE '3%' AND symbol NOT LIKE '4%' AND symbol NOT LIKE '5%' AND symbol NOT LIKE '6%' AND symbol NOT LIKE '7%' AND symbol NOT LIKE '8%' AND symbol NOT LIKE '9%' ORDER BY symbol LIMIT 500",
-		exchange,
-	)
+	q := r.URL.Query().Get("q")
+	var rows *sql.Rows
+	var err error
+	if q != "" {
+		// Search by prefix
+		rows, err = h.MarketDB.Query(
+			"SELECT DISTINCT symbol FROM master_contracts WHERE exchange = ? AND instrumenttype NOT LIKE 'OPT%' AND instrumenttype NOT LIKE 'FUT%' AND symbol NOT LIKE '%/%' AND LENGTH(symbol) < 20 AND (symbol LIKE ? OR symbol LIKE ?) ORDER BY symbol LIMIT 50",
+			exchange, q+"%", "%"+q+"%",
+		)
+	} else {
+		rows, err = h.MarketDB.Query(
+			"SELECT DISTINCT symbol FROM master_contracts WHERE exchange = ? AND instrumenttype NOT LIKE 'OPT%' AND instrumenttype NOT LIKE 'FUT%' AND symbol NOT LIKE '%/%' AND LENGTH(symbol) < 20 AND symbol NOT LIKE '0%' AND symbol NOT LIKE '1%' AND symbol NOT LIKE '2%' AND symbol NOT LIKE '3%' AND symbol NOT LIKE '4%' AND symbol NOT LIKE '5%' AND symbol NOT LIKE '6%' AND symbol NOT LIKE '7%' AND symbol NOT LIKE '8%' AND symbol NOT LIKE '9%' ORDER BY symbol LIMIT 500",
+			exchange,
+		)
+	}
 	if err != nil {
 		http.Error(w, err.Error(), 500)
 		return
