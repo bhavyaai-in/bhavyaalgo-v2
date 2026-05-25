@@ -4,6 +4,7 @@ import (
 	"crypto/rand"
 	"database/sql"
 	"encoding/hex"
+	"fmt"
 	"net/http"
 	"strconv"
 	"strings"
@@ -462,106 +463,122 @@ func (a *App) handleStrategyPlaceOrder(w http.ResponseWriter, r *http.Request) {
 		baseQtyFloat, _ = strconv.ParseFloat(baseQty, 64)
 	}
 
-	results := make([]strategyOrderResult, 0, len(joiners))
+	type validJoiner struct {
+		j   tradingdb.StrategyJoiner
+		bc  *brokerClientResult
+	}
+	var validJoiners []validJoiner
+	today := time.Now().Format("2006-01-02")
+
 	for _, j := range joiners {
 		if j.IsActive == 0 {
 			continue
 		}
-		// Verify broker has valid today's token
-		var tokenStatus string
-		var tokenDate string
+		var tokenStatus, tokenDate string
 		a.TradingDB.QueryRow(
 			"SELECT token_status, broker_token_date FROM brokers WHERE id = ?",
 			j.BrokerID,
 		).Scan(&tokenStatus, &tokenDate)
-		if tokenStatus != "connected" {
-			results = append(results, strategyOrderResult{
-				BrokerID: j.BrokerID, BrokerName: "", Success: false, Error: "broker not connected",
-			})
+		if tokenStatus != "connected" || !strings.HasPrefix(tokenDate, today) {
 			continue
 		}
-		today := time.Now().Format("2006-01-02")
-		if !strings.HasPrefix(tokenDate, today) {
-			results = append(results, strategyOrderResult{
-				BrokerID: j.BrokerID, BrokerName: "", Success: false, Error: "broker token expired (not today)",
-			})
-			continue
-		}
-		qty := baseQtyFloat
-		if qty == 0 {
-			qty = 1
-		}
-		if j.Quantity > 0 {
-			qty = qty * j.Quantity
-		}
-		if j.Multiplier > 0 {
-			qty = qty * j.Multiplier
-		}
-
 		bc, err := a.brokerClient(j.BrokerID)
 		if err != nil {
-			results = append(results, strategyOrderResult{
-				BrokerID: j.BrokerID, BrokerName: "", Success: false, Error: err.Error(),
-			})
+			continue
+		}
+		validJoiners = append(validJoiners, validJoiner{j, bc})
+	}
+
+	orderData := req.Data
+	allSuccess := true
+	var results []strategyOrderResult
+
+	for _, vj := range validJoiners {
+		j := vj.j
+		bc := vj.bc
+
+		qty := baseQtyFloat
+		if qty == 0 { qty = 1 }
+		if j.Quantity > 0 { qty = qty * j.Quantity }
+		if j.Multiplier > 0 { qty = qty * j.Multiplier }
+
+		od := make(map[string]any)
+		for k, v := range orderData { od[k] = v }
+		od["quantity"] = strconv.Itoa(int(qty))
+
+		// Create order record with "placing" status
+		orderID, cerr := a.TradingQ.CreateOrder(r.Context(), tradingdb.CreateOrderParams{
+			BrokerID:              j.BrokerID,
+			StrategyID:            sql.NullInt64{Int64: strategyID, Valid: true},
+			OrderID:               "",
+			StatusMessage:         "",
+			Status:                "placing",
+			Quantity:              float64(qty),
+			Tag:                   fmt.Sprintf("%v", od["tag"]),
+			Variety:               fmt.Sprintf("%v", od["variety"]),
+			Tradingsymbol:         fmt.Sprintf("%v", od["symbol"]),
+			Exchange:              fmt.Sprintf("%v", od["exchange"]),
+			TransactionType:       fmt.Sprintf("%v", od["action"]),
+			Product:               fmt.Sprintf("%v", od["product"]),
+			OrderType:             fmt.Sprintf("%v", od["ordertype"]),
+			Price:                 func() float64 { f, _ := strconv.ParseFloat(fmt.Sprintf("%v", od["price"]), 64); return f }(),
+			TriggerPrice:          func() float64 { f, _ := strconv.ParseFloat(fmt.Sprintf("%v", od["trigger_price"]), 64); return f }(),
+			Validity:              "DAY",
+			AveragePrice:          0,
+			FilledQuantity:        0,
+			PendingQuantity:       0,
+			CancelledQuantity:     0,
+			InstrumentToken:       0,
+			BrokerInstrumentToken: 0,
+			PositionID:            sql.NullInt64{},
+		})
+		if cerr != nil || orderID == 0 {
+			allSuccess = false
+			results = append(results, strategyOrderResult{BrokerID: j.BrokerID, BrokerName: bc.brokerName, Success: false, Error: "failed to create order record"})
 			continue
 		}
 
-		orderData := req.Data
-		orderData["quantity"] = strconv.Itoa(int(qty))
-
-		var result map[string]any
+		var placeResult map[string]any
+		var placeErr error
 		switch bc.brokerName {
 		case "angel":
-			var placeErr error
-			result, placeErr = bc.angelClient.PlaceOrder(bc.authToken, orderData)
-			if placeErr != nil {
-				results = append(results, strategyOrderResult{
-					BrokerID: j.BrokerID, BrokerName: bc.brokerName, Success: false, Error: placeErr.Error(),
-				})
-				continue
-			}
-			if err := checkAngelError(result); err != nil {
-				results = append(results, strategyOrderResult{
-					BrokerID: j.BrokerID, BrokerName: bc.brokerName, Success: false, Error: err.Error(),
-				})
-				continue
-			}
-			orderID, _ := result["order_id"].(string)
-			results = append(results, strategyOrderResult{
-				BrokerID: j.BrokerID, BrokerName: bc.brokerName, Success: true, OrderID: orderID,
-			})
+			placeResult, placeErr = bc.angelClient.PlaceOrder(bc.authToken, od)
+			if placeErr == nil { placeErr = checkAngelError(placeResult) }
 		case "aliceblue":
-			var placeErr error
-			result, placeErr = bc.aliceClient.PlaceOrder(bc.authToken, orderData)
-			if placeErr != nil {
-				results = append(results, strategyOrderResult{
-					BrokerID: j.BrokerID, BrokerName: bc.brokerName, Success: false, Error: placeErr.Error(),
-				})
-				continue
-			}
-			if err := checkAliceError(result); err != nil {
-				results = append(results, strategyOrderResult{
-					BrokerID: j.BrokerID, BrokerName: bc.brokerName, Success: false, Error: err.Error(),
-				})
-				continue
-			}
-			var orderID string
-			if r, ok := result["result"].([]any); ok && len(r) > 0 {
-				if first, ok := r[0].(map[string]any); ok {
-					orderID, _ = first["brokerOrderId"].(string)
-				}
-			}
-			if orderID == "" {
-				orderID, _ = result["brokerOrderId"].(string)
-			}
-			results = append(results, strategyOrderResult{
-				BrokerID: j.BrokerID, BrokerName: bc.brokerName, Success: true, OrderID: orderID,
-			})
+			placeResult, placeErr = bc.aliceClient.PlaceOrder(bc.authToken, od)
+			if placeErr == nil { placeErr = checkAliceError(placeResult) }
 		default:
-			results = append(results, strategyOrderResult{
-				BrokerID: j.BrokerID, BrokerName: bc.brokerName, Success: false, Error: "unsupported broker",
-			})
+			placeErr = fmt.Errorf("unsupported broker")
 		}
+
+		if placeErr != nil {
+			a.TradingQ.UpdateOrderStatus(r.Context(), tradingdb.UpdateOrderStatusParams{
+				ID: orderID, Status: "error", StatusMessage: placeErr.Error(),
+			})
+			allSuccess = false
+			results = append(results, strategyOrderResult{BrokerID: j.BrokerID, BrokerName: bc.brokerName, Success: false, Error: placeErr.Error()})
+			continue
+		}
+
+		brokerOrderID := ""
+		switch bc.brokerName {
+		case "angel":
+			brokerOrderID, _ = placeResult["order_id"].(string)
+		case "aliceblue":
+			if r, ok := placeResult["result"].([]any); ok && len(r) > 0 {
+				if first, ok := r[0].(map[string]any); ok { brokerOrderID, _ = first["brokerOrderId"].(string) }
+			}
+			if brokerOrderID == "" { brokerOrderID, _ = placeResult["brokerOrderId"].(string) }
+		}
+
+		// Update order status and order_id via raw SQL
+		a.TradingDB.Exec("UPDATE orders SET status='placed', order_id=?, status_message='Order placed successfully', updated_at=datetime('now','localtime') WHERE id=?",
+			brokerOrderID, orderID)
+		results = append(results, strategyOrderResult{BrokerID: j.BrokerID, BrokerName: bc.brokerName, Success: true, OrderID: brokerOrderID})
 	}
-	writeJSON(w, http.StatusOK, map[string]any{"results": results})
+
+	writeJSON(w, http.StatusOK, map[string]any{
+		"status":  func() string { if allSuccess { return "success" }; return "partial" }(),
+		"results": results,
+	})
 }
