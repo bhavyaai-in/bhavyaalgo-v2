@@ -383,12 +383,7 @@ header h2 { margin:0; }
 .search-item.highlighted { background:hsl(var(--primary)/.15); }
 .search-empty { padding:.5rem; text-align:center; font-size:var(--font-sm); color:hsl(var(--muted-foreground)); }
 .controls .chip { padding:.35rem .65rem; font-size:var(--font-sm); }
-.chip {
-  padding:.25rem .6rem; border:1px solid hsl(var(--border)); border-radius:var(--radius);
-  font-size:var(--font-xs); cursor:pointer; background:transparent; color:hsl(var(--muted-foreground));
-}
-.chip.primary { background:hsl(var(--primary)); color:#fff; border-color:hsl(var(--primary)); font-weight:600; }
-.chip.primary:disabled { opacity:.5; cursor:not-allowed; }
+
 
 .summary { display:flex; gap:.75rem; margin-bottom:1rem; flex-wrap:wrap; }
 .card {

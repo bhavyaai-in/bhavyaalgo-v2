@@ -196,18 +196,13 @@ h2 { margin:0 0 1rem; }
 .type-main p { margin:.15rem 0 0; font-size:var(--font-xs); color:hsl(var(--muted-foreground)); }
 .type-actions { display:flex; gap:.4rem; flex-shrink:0; }
 
-.chip {
-  padding:.25rem .6rem; border:1px solid hsl(var(--border)); border-radius:var(--radius);
-  font-size:var(--font-xs); cursor:pointer; background:transparent; color:hsl(var(--muted-foreground));
-}
-.chip:hover { border-color:hsl(var(--primary)); color:hsl(var(--primary)); }
 .chip.danger:hover { border-color:hsl(var(--destructive)); color:hsl(var(--destructive)); }
 
-.data-table { width:100%; border-collapse:collapse; font-size:var(--font-sm); }
-.data-table th, .data-table td { padding:.4rem .5rem; border-bottom:1px solid hsl(var(--border)); text-align:left; }
-.data-table th { font-weight:600; color:hsl(var(--foreground)); }
-.data-table td { color:hsl(var(--muted-foreground)); }
-.data-table .pkey { font-weight:600; color:hsl(var(--foreground)); width:35%; }
+
+
+
+
+
 
 .state-msg { text-align:center; padding:2rem; color:hsl(var(--muted-foreground)); font-size:var(--font-sm); }
 

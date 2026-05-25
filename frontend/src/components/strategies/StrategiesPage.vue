@@ -173,12 +173,7 @@ header h2 { margin:0; }
 .sc-name { font-size:var(--font-base); font-weight:700; color:hsl(var(--foreground)); }
 .sc-meta { display:flex; gap:.75rem; font-size:var(--font-xs); color:hsl(var(--muted-foreground)); }
 .sc-actions { display:flex; gap:.4rem; margin-top:.25rem; }
-.chip {
-  padding:.25rem .6rem; border:1px solid hsl(var(--border)); border-radius:var(--radius);
-  font-size:var(--font-xs); cursor:pointer; background:transparent; color:hsl(var(--muted-foreground));
-}
-.chip:hover { border-color:hsl(var(--primary)); color:hsl(var(--primary)); }
-.chip.primary { background:hsl(var(--primary)); color:#fff; border-color:hsl(var(--primary)); }
+
 .chip.primary:hover { opacity:.9; }
 .chip.danger:hover { border-color:hsl(var(--destructive)); color:hsl(var(--destructive)); }
 .state-msg { text-align:center; padding:2rem; color:hsl(var(--muted-foreground)); }

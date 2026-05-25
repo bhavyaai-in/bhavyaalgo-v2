@@ -198,7 +198,7 @@ header h2 { margin:0 0 1rem; }
 .controls select, .date-input { padding:.35rem .55rem; border:1px solid hsl(var(--input)); border-radius:var(--radius); font-size:var(--font-sm); background:hsl(var(--card)); outline:none; }
 .controls label { display:flex; align-items:center; gap:4px; font-size:var(--font-sm); color:hsl(var(--muted-foreground)); }
 .date-input { width:140px; }
-.chip { padding:.25rem .6rem; border-radius:var(--radius); font-size:var(--font-xs); cursor:pointer; background:transparent; color:hsl(var(--muted-foreground)); border:1px solid hsl(var(--border)); }
+
 .chip.primary { background:hsl(var(--primary)); color:#fff; border-color:hsl(var(--primary)); font-weight:600; }
 .chip.primary:disabled { opacity:.5; cursor:not-allowed; }
 .search-wrap { position:relative; min-width:160px; }

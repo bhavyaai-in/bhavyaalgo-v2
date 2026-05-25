@@ -343,13 +343,6 @@ header h2 { margin: 0; }
 .token-status.connected { color: #16A34A; }
 .token-status.error { color: hsl(var(--destructive)); }
 .chip-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: .4rem; margin-top: .75rem; }
-.chip {
-  display: flex; flex-direction: column; align-items: center; gap: .15rem;
-  padding: .4rem .2rem; border: 1px solid hsl(var(--border)); background: hsl(var(--card));
-  color: hsl(var(--muted-foreground)); border-radius: var(--radius); cursor: pointer;
-  font-size: var(--font-xs); font-weight: 500; line-height: 1.2;
-}
-.chip:hover { border-color: hsl(var(--primary)); color: hsl(var(--primary)); }
 .chip.danger:hover { border-color: hsl(var(--destructive)); color: hsl(var(--destructive)); }
 .chip.connect-chip { border-color: #16A34A; color: #16A34A; }
 .chip.connect-chip.connected { background: #16A34A; color: #fff; border-color: #16A34A; }

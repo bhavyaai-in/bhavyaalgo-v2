@@ -1,0 +1,58 @@
+/*
+ * Common UI Components
+ * Shared across all pages for consistent styling.
+ */
+
+/* ─── Chip ───────────────────────────────────── */
+.chip {
+  display:inline-flex; align-items:center; justify-content:center;
+  padding:.35rem .65rem;
+  height:30px;
+  border:1px solid hsl(var(--border));
+  border-radius:var(--radius);
+  font-size:var(--font-xs); font-weight:500;
+  cursor:pointer; background:transparent;
+  color:hsl(var(--muted-foreground));
+  white-space:nowrap; gap:4px;
+  transition:background .12s, border-color .12s, color .12s;
+  line-height:1;
+}
+.chip:hover { border-color:hsl(var(--primary)); color:hsl(var(--primary)); }
+.chip:active { transform:scale(.97); }
+.chip:disabled { opacity:.5; cursor:not-allowed; }
+
+.chip.primary {
+  background:hsl(var(--primary)); color:#fff;
+  border-color:hsl(var(--primary)); font-weight:600;
+}
+.chip.primary:hover { opacity:.9; }
+.chip.primary:disabled { opacity:.5; }
+
+.chip.danger:hover { border-color:hsl(var(--destructive)); color:hsl(var(--destructive)); }
+
+/* ─── Small Button ────────────────────────────── */
+.small-btn {
+  display:inline-flex; align-items:center; gap:4px;
+  padding:.35rem .7rem; height:30px;
+  border:1px solid hsl(var(--border)); border-radius:var(--radius);
+  font-size:var(--font-xs); font-weight:500;
+  cursor:pointer; background:transparent; color:hsl(var(--muted-foreground));
+  white-space:nowrap; transition:background .12s, border-color .12s;
+}
+.small-btn:hover { border-color:hsl(var(--primary)); color:hsl(var(--primary)); }
+.small-btn.primary { background:hsl(var(--primary)); color:#fff; border-color:hsl(var(--primary)); }
+.small-btn.primary:hover { opacity:.9; }
+.small-btn:disabled { opacity:.5; cursor:default; }
+
+/* ─── Data Table ──────────────────────────────── */
+.data-table { width:100%; border-collapse:collapse; font-size:var(--font-sm); }
+.data-table th, .data-table td { padding:.35rem .5rem; border-bottom:1px solid hsl(var(--border)); text-align:left; white-space:nowrap; }
+.data-table th { font-weight:600; color:hsl(var(--foreground)); }
+.data-table td { color:hsl(var(--muted-foreground)); }
+
+/* ─── Utils ───────────────────────────────────── */
+.empty-msg { text-align:center; padding:1.5rem; font-size:var(--font-sm); color:hsl(var(--muted-foreground)); }
+.tab-badge {
+  font-size:.625rem; font-weight:600; padding:0 5px; border-radius:999px;
+  background:hsl(var(--muted)); color:hsl(var(--muted-foreground)); line-height:1.4;
+}
