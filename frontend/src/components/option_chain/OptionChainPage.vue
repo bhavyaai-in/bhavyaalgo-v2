@@ -182,6 +182,20 @@ function formatLakhs(v) {
   return String(Math.round(v))
 }
 
+const liveAtmStrike = computed(() => {
+  if (!liveUnderlyingLTP.value || !chain.value.length) return atmStrike.value
+  let closest = chain.value[0].strike
+  let minDiff = Math.abs(liveUnderlyingLTP.value - closest)
+  for (const item of chain.value) {
+    const diff = Math.abs(liveUnderlyingLTP.value - item.strike)
+    if (diff < minDiff) {
+      minDiff = diff
+      closest = item.strike
+    }
+  }
+  return closest
+})
+
 const liveUnderlyingLTP = computed(() => {
   if (!underlyingToken.value) return underlyingLTP.value
   // Check ltpMap for token (with and without 999 prefix)
@@ -216,9 +230,8 @@ const liveChain = computed(() => {
 })
 
 function strikeLabel(strike) {
-  if (strike === atmStrike.value) return 'ATM'
-  const idx = chain.value.findIndex(c => c.strike === strike)
-  return chain.value[idx]?.ce?.label || chain.value[idx]?.pe?.label || ''
+  if (strike === liveAtmStrike.value) return 'ATM'
+  return '' // Labels from API are used via item.ce.label / item.pe.label
 }
 
 function changeClass(item, side, strike) {
@@ -269,7 +282,7 @@ function changeClass(item, side, strike) {
       </div>
       <div class="card">
         <span class="card-label">ATM Strike</span>
-        <span class="card-value">{{ atmStrike }}</span>
+        <span class="card-value">{{ liveAtmStrike }}</span>
         <span class="card-sub">{{ selectedExpiry }}</span>
       </div>
       <div class="card">
