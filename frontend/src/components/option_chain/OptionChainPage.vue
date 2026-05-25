@@ -25,6 +25,7 @@ const loading = ref(false)
 const error = ref('')
 const underlyingLTP = ref(0)
 const underlyingClose = ref(0)
+const underlyingToken = ref('')
 const atmStrike = ref(0)
 const pcr = ref(0)
 const ltpMap = ref({})
@@ -136,6 +137,7 @@ async function loadChain() {
     chain.value = res.chain || []
     underlyingLTP.value = res.underlying_ltp || 0
     underlyingClose.value = res.underlying_close || 0
+    underlyingToken.value = res.underlying_token || ''
     atmStrike.value = res.atm_strike || 0
     pcr.value = res.pcr || 0
 
@@ -179,6 +181,18 @@ function formatLakhs(v) {
   if (v >= 1000) return (v / 1000).toFixed(1) + 'K'
   return String(Math.round(v))
 }
+
+const liveUnderlyingLTP = computed(() => {
+  if (!underlyingToken.value) return underlyingLTP.value
+  // Check ltpMap for token (with and without 999 prefix)
+  const t = ltpMap.value[underlyingToken.value]
+  if (t?.ltp != null) return t.ltp
+  if (underlyingToken.value.length < 10) {
+    const prefixed = ltpMap.value['999' + underlyingToken.value]
+    if (prefixed?.ltp != null) return prefixed.ltp
+  }
+  return underlyingLTP.value
+})
 
 const liveChain = computed(() => {
   return chain.value.map(item => {
@@ -250,7 +264,7 @@ function changeClass(item, side, strike) {
     <div v-if="chain.length" class="summary">
       <div class="card">
         <span class="card-label">{{ selectedUnderlying }}</span>
-        <span class="card-value primary">{{ formatPrice(underlyingLTP) }}</span>
+        <span class="card-value primary">{{ formatPrice(liveUnderlyingLTP) }}</span>
         <span class="card-sub">Close: {{ formatPrice(underlyingClose) }}</span>
       </div>
       <div class="card">
