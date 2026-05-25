@@ -1,7 +1,11 @@
 <script setup>
 import { ref, computed, watch, onMounted } from 'vue'
+import { useRoute, useRouter } from 'vue-router'
 import { api } from '../../utils/api.js'
 import { useWebSocket } from '../../composables/useWebSocket.js'
+
+const route = useRoute()
+const router = useRouter()
 
 const ws = useWebSocket()
 
@@ -92,7 +96,15 @@ async function loadUnderlyings() {
   try {
     underlyings.value = await api(`/api/option-chain/underlyings?exchange=${selectedExchange.value}`)
     if (underlyings.value.length > 0) {
-      selectedUnderlying.value = underlyings.value[0]
+      // Use URL param if present, else default to NIFTY, else first in list
+      const urlUnderlying = route.query.underlying
+      if (urlUnderlying && underlyings.value.includes(urlUnderlying)) {
+        selectedUnderlying.value = urlUnderlying
+      } else if (underlyings.value.includes('NIFTY')) {
+        selectedUnderlying.value = 'NIFTY'
+      } else {
+        selectedUnderlying.value = underlyings.value[0]
+      }
     }
   } catch {}
 }
@@ -102,7 +114,13 @@ async function loadExpiries() {
   try {
     expiries.value = await api(`/api/option-chain/expiries?exchange=${selectedExchange.value}&underlying=${encodeURIComponent(selectedUnderlying.value)}`)
     if (expiries.value.length > 0) {
-      selectedExpiry.value = expiries.value[0]
+      // Use URL param if present, else first in list
+      const urlExpiry = route.query.expiry
+      if (urlExpiry && expiries.value.some(e => e.replace(/-/g,'') === urlExpiry)) {
+        selectedExpiry.value = expiries.value.find(e => e.replace(/-/g,'') === urlExpiry)
+      } else {
+        selectedExpiry.value = expiries.value[0]
+      }
     }
   } catch {}
 }
@@ -138,8 +156,17 @@ async function loadChain() {
 }
 
 watch(selectedExchange, () => { loadUnderlyings() })
-watch(selectedUnderlying, () => { loadExpiries() })
-watch([selectedExpiry, strikeCount], () => { loadChain() })
+watch(selectedUnderlying, (val) => { 
+  if (val) router.replace({ query: { ...route.query, underlying: val } })
+  loadExpiries() 
+})
+watch([selectedExpiry, strikeCount], (vals) => { 
+  if (vals[0]) {
+    const expiryAPI = vals[0].replace(/-/g, '')
+    router.replace({ query: { ...route.query, expiry: expiryAPI } })
+  }
+  loadChain() 
+})
 
 onMounted(() => {
   loadUnderlyings()

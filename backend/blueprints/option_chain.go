@@ -175,7 +175,7 @@ func (a *App) handleOptionChain(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Get underlying LTP (non-fatal — chain still returned without ATM info)
-	underlyingLTP, underlyingClose, _ := a.getUnderlyingPrice(r.Context(), underlying, quoteExchange)
+	underlyingLTP, underlyingClose, underlyingToken, _ := a.getUnderlyingPrice(r.Context(), underlying, quoteExchange)
 
 	// Expiry format: master_contracts stores in DD-MMM-YY (e.g. "30-JUN-26")
 	// User sends DDMMMYY (e.g. "30JUN26") or DD-MMM-YY
@@ -383,6 +383,7 @@ func (a *App) handleOptionChain(w http.ResponseWriter, r *http.Request) {
 		"underlying":       underlying,
 		"underlying_ltp":   underlyingLTP,
 		"underlying_close": underlyingClose,
+		"underlying_token":  underlyingToken,
 		"expiry":           expiryFormatted,
 		"atm_strike":       atmStrike,
 		"pcr":              math.Round(pcr*100) / 100,
@@ -593,7 +594,7 @@ func parseAliceQuote(m map[string]any) quoteResult {
 	}
 }
 
-func (a *App) getUnderlyingPrice(ctx context.Context, symbol, exchange string) (float64, float64, error) {
+func (a *App) getUnderlyingPrice(ctx context.Context, symbol, exchange string) (float64, float64, string, error) {
 	// Try exact exchange first, then try NSE for indices, then try any exchange
 	// Exclude options (OPT*) and futures (FUT*) — only get the underlying contract
 	var token, brExchange string
@@ -628,7 +629,7 @@ func (a *App) getUnderlyingPrice(ctx context.Context, symbol, exchange string) (
 	var brokerID int64
 	var brokerName, brokerToken string
 	if err := brokerRow.Scan(&brokerID, &brokerName, &brokerToken); err != nil {
-		return 0, 0, fmt.Errorf("no connected broker")
+		return 0, 0, "", fmt.Errorf("no connected broker")
 	}
 
 	var ltp, closeP float64
@@ -640,7 +641,7 @@ func (a *App) getUnderlyingPrice(ctx context.Context, symbol, exchange string) (
 		ac := angel.NewClient(apiKey)
 		resp, err := ac.GetQuote(brokerToken, quoteExchange, symbol, token)
 		if err != nil {
-			return 0, 0, err
+			return 0, 0, "", err
 		}
 		if dm, ok := resp["data"].(map[string]any); ok {
 			if fetched, ok := dm["fetched"].([]any); ok && len(fetched) > 0 {
@@ -660,7 +661,7 @@ func (a *App) getUnderlyingPrice(ctx context.Context, symbol, exchange string) (
 		if err != nil {
 			resp2, err2 := ac.GetQuote(brokerToken, quoteExchange, symbol, token)
 			if err2 != nil {
-				return 0, 0, err2
+				return 0, 0, "", err2
 			}
 			resp = resp2
 		}
@@ -668,13 +669,13 @@ func (a *App) getUnderlyingPrice(ctx context.Context, symbol, exchange string) (
 		ltp = q.ltp
 		closeP = q.close
 	default:
-		return 0, 0, fmt.Errorf("unsupported broker: %s", brokerName)
+		return 0, 0, "", fmt.Errorf("unsupported broker: %s", brokerName)
 	}
 
 	if ltp <= 0 {
-		return 0, 0, fmt.Errorf("failed to fetch LTP for %s", symbol)
+		return 0, 0, "", fmt.Errorf("failed to fetch LTP for %s", symbol)
 	}
-	return ltp, closeP, nil
+	return ltp, closeP, token, nil
 }
 
 // Known NSE index tokens (Angel tokens) for underlying price lookup
@@ -692,16 +693,16 @@ var knownIndexTokens = map[string]string{
 	"NIFTYBANK":  "99926015",
 }
 
-func (a *App) getIndexPrice(ctx context.Context, symbol string) (float64, float64, error) {
+func (a *App) getIndexPrice(ctx context.Context, symbol string) (float64, float64, string, error) {
 	token, ok := knownIndexTokens[symbol]
 	if !ok {
-		return 0, 0, fmt.Errorf("no known token for %s", symbol)
+		return 0, 0, "", fmt.Errorf("no known token for %s", symbol)
 	}
 	brokerRow := a.TradingDB.QueryRowContext(ctx,
 		`SELECT broker_name, broker_token, broker_api, broker_api_secret FROM brokers WHERE token_status='connected' LIMIT 1`)
 	var brokerName, brokerToken, brokerAPI, brokerAPISecret string
 	if err := brokerRow.Scan(&brokerName, &brokerToken, &brokerAPI, &brokerAPISecret); err != nil {
-		return 0, 0, fmt.Errorf("no connected broker")
+		return 0, 0, "", fmt.Errorf("no connected broker")
 	}
 
 	switch brokerName {
@@ -709,13 +710,13 @@ func (a *App) getIndexPrice(ctx context.Context, symbol string) (float64, float6
 		ac := angel.NewClient(brokerAPI)
 		resp, err := ac.GetQuote(brokerToken, "NSE", symbol, token)
 		if err != nil {
-			return 0, 0, err
+			return 0, 0, "", err
 		}
 		if dm, ok := resp["data"].(map[string]any); ok {
 			if fetched, ok := dm["fetched"].([]any); ok && len(fetched) > 0 {
 				if m, ok := fetched[0].(map[string]any); ok {
 					q := parseAngelQuote(m)
-					return q.ltp, q.close, nil
+					return q.ltp, q.close, token, nil
 				}
 			}
 		}
@@ -726,13 +727,13 @@ func (a *App) getIndexPrice(ctx context.Context, symbol string) (float64, float6
 		if err != nil {
 			resp, err = ac.GetQuote(brokerToken, "NSE", symbol, token)
 			if err != nil {
-				return 0, 0, err
+				return 0, 0, "", err
 			}
 		}
 		q := parseAliceQuote(resp)
-		return q.ltp, q.close, nil
+		return q.ltp, q.close, token, nil
 	}
-	return 0, 0, fmt.Errorf("unable to fetch index price for %s", symbol)
+	return 0, 0, "", fmt.Errorf("unable to fetch index price for %s", symbol)
 }
 
 func findATMStrike(ltp float64, strikes []float64) float64 {
