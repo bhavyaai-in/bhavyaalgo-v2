@@ -6,6 +6,8 @@ import (
 	"encoding/hex"
 	"net/http"
 	"strconv"
+	"strings"
+	"time"
 
 	tradingdb "bhavyaaialgo/backend/db/trading/gen"
 )
@@ -463,6 +465,26 @@ func (a *App) handleStrategyPlaceOrder(w http.ResponseWriter, r *http.Request) {
 	results := make([]strategyOrderResult, 0, len(joiners))
 	for _, j := range joiners {
 		if j.IsActive == 0 {
+			continue
+		}
+		// Verify broker has valid today's token
+		var tokenStatus string
+		var tokenDate string
+		a.TradingDB.QueryRow(
+			"SELECT token_status, broker_token_date FROM brokers WHERE id = ?",
+			j.BrokerID,
+		).Scan(&tokenStatus, &tokenDate)
+		if tokenStatus != "connected" {
+			results = append(results, strategyOrderResult{
+				BrokerID: j.BrokerID, BrokerName: "", Success: false, Error: "broker not connected",
+			})
+			continue
+		}
+		today := time.Now().Format("2006-01-02")
+		if !strings.HasPrefix(tokenDate, today) {
+			results = append(results, strategyOrderResult{
+				BrokerID: j.BrokerID, BrokerName: "", Success: false, Error: "broker token expired (not today)",
+			})
 			continue
 		}
 		qty := baseQtyFloat
