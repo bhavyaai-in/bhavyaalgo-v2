@@ -506,6 +506,22 @@ func (a *App) handleStrategyPlaceOrder(w http.ResponseWriter, r *http.Request) {
 		for k, v := range orderData { od[k] = v }
 		od["quantity"] = strconv.Itoa(int(qty))
 
+		// Helper to get string value from map with fallback
+		getVal := func(key, fallback string) string {
+			if v, ok := od[key]; ok && v != nil {
+				s, _ := v.(string)
+				if s != "" { return s }
+			}
+			return fallback
+		}
+		getFloat := func(key string, fallback float64) float64 {
+			if v, ok := od[key]; ok && v != nil {
+				s, _ := v.(string)
+				if s != "" { f, e := strconv.ParseFloat(s, 64); if e == nil { return f } }
+			}
+			return fallback
+		}
+
 		// Create order record with "placing" status
 		orderID, cerr := a.TradingQ.CreateOrder(r.Context(), tradingdb.CreateOrderParams{
 			BrokerID:              j.BrokerID,
@@ -514,15 +530,15 @@ func (a *App) handleStrategyPlaceOrder(w http.ResponseWriter, r *http.Request) {
 			StatusMessage:         "",
 			Status:                "placing",
 			Quantity:              float64(qty),
-			Tag:                   fmt.Sprintf("%v", od["tag"]),
-			Variety:               fmt.Sprintf("%v", od["variety"]),
-			Tradingsymbol:         fmt.Sprintf("%v", od["symbol"]),
-			Exchange:              fmt.Sprintf("%v", od["exchange"]),
-			TransactionType:       fmt.Sprintf("%v", od["action"]),
-			Product:               fmt.Sprintf("%v", od["product"]),
-			OrderType:             fmt.Sprintf("%v", od["ordertype"]),
-			Price:                 func() float64 { f, _ := strconv.ParseFloat(fmt.Sprintf("%v", od["price"]), 64); return f }(),
-			TriggerPrice:          func() float64 { f, _ := strconv.ParseFloat(fmt.Sprintf("%v", od["trigger_price"]), 64); return f }(),
+			Tag:                   getVal("tag", ""),
+			Variety:               getVal("variety", "NORMAL"),
+			Tradingsymbol:         getVal("symbol", ""),
+			Exchange:              getVal("exchange", ""),
+			TransactionType:       getVal("action", ""),
+			Product:               getVal("product", "INTRADAY"),
+			OrderType:             getVal("ordertype", "MARKET"),
+			Price:                 getFloat("price", 0),
+			TriggerPrice:          getFloat("trigger_price", 0),
 			Validity:              "DAY",
 			AveragePrice:          0,
 			FilledQuantity:        0,
