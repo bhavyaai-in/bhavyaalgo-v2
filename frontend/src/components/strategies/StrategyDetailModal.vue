@@ -13,6 +13,8 @@ const joinerForm = ref({ broker_id: 0, quantity: 1, multiplier: 1, re_entry: 1, 
 const submitting = ref(false)
 const showPlaceOrder = ref(false)
 const editingJoiner = ref(null)
+const strategyOrders = ref([])
+const loadingOrders = ref(false)
 
 const availableBrokers = computed(() => {
   const joined = new Set((props.data?.joiners || []).map(j => j.broker_id))
@@ -94,6 +96,19 @@ async function toggleJoinerActive(j) {
   j.is_active = newVal
 }
 
+async function loadStrategyOrders() {
+  if (!props.data?.strategy?.id) return
+  loadingOrders.value = true
+  try {
+    strategyOrders.value = await api('/api/strategies/' + props.data.strategy.id + '/orders')
+  } catch { strategyOrders.value = [] }
+  finally { loadingOrders.value = false }
+}
+
+watch(() => props.data, (val) => {
+  if (val?.strategy?.id) loadStrategyOrders()
+}, { immediate: true })
+
 </script>
 
 <template>
@@ -107,6 +122,7 @@ async function toggleJoinerActive(j) {
         <button :class="{ active: activeTab === 'joiners' }" @click="activeTab = 'joiners'">Joiners <span class="tab-badge">{{ (data.joiners || []).length }}</span></button>
         <button :class="{ active: activeTab === 'positions' }" @click="activeTab = 'positions'">Positions <span class="tab-badge">{{ (data.positions || []).length }}</span></button>
         <button :class="{ active: activeTab === 'orders' }" @click="activeTab = 'orders'">Orders <span class="tab-badge">{{ (data.orders || []).length }}</span></button>
+        <button :class="{ active: activeTab === 'strategyorders' }" @click="activeTab = 'strategyorders'">Strategy Orders <span class="tab-badge">{{ strategyOrders.length }}</span></button>
       </div>
 
       <!-- Overview Tab -->
@@ -234,6 +250,30 @@ async function toggleJoinerActive(j) {
         <div v-else class="empty-msg">No orders.</div>
       </div>
 
+      <!-- Strategy Orders Tab -->
+      <div v-if="activeTab === 'strategyorders'" class="tab-panel">
+        <div v-if="loadingOrders" class="empty-msg">Loading...</div>
+        <table v-else-if="strategyOrders.length" class="data-table">
+          <thead><tr><th>#</th><th>Order ID</th><th>Symbol</th><th>Side</th><th>Qty</th><th>Type</th><th>Status</th><th>Message</th><th>Time</th></tr></thead>
+          <tbody>
+            <tr v-for="(o, i) in strategyOrders" :key="o.id">
+              <td>{{ i + 1 }}</td>
+              <td>{{ o.order_id || '-' }}</td>
+              <td>{{ o.tradingsymbol }}</td>
+              <td>{{ o.transaction_type }}</td>
+              <td>{{ o.quantity }}</td>
+              <td>{{ o.order_type }}</td>
+              <td>
+                <span class="status-badge" :class="o.status">{{ o.status }}</span>
+              </td>
+              <td class="msg-cell">{{ o.status_message || '-' }}</td>
+              <td class="ts-cell">{{ o.created_at?.slice(11,16) || '' }}</td>
+            </tr>
+          </tbody>
+        </table>
+        <div v-else class="empty-msg">No strategy orders yet. Place an order from this strategy to see it here.</div>
+      </div>
+
       <!-- Place Order button -->
       <div class="modal-footer">
         <button class="order-btn" @click="showPlaceOrder = true">Place Order</button>
@@ -354,6 +394,15 @@ h3 { margin-bottom:.75rem; }
 .data-table th, .data-table td { padding:.35rem .45rem; border-bottom:1px solid hsl(var(--border)); text-align:left; white-space:nowrap; }
 .data-table th { font-weight:600; color:hsl(var(--foreground)); }
 .data-table td { color:hsl(var(--muted-foreground)); }
+
+/* Status badges */
+.status-badge { font-size:.625rem; font-weight:600; padding:1px 6px; border-radius:999px; text-transform:capitalize; }
+.status-badge.placing { background:hsl(210 100% 50%/.15); color:hsl(210 100% 50%); }
+.status-badge.placed { background:hsl(142 70% 45%/.15); color:#16A34A; }
+.status-badge.partial { background:hsl(38 92% 50%/.15); color:#D97706; }
+.status-badge.error { background:hsl(0 84% 60%/.15); color:hsl(0 84% 60%); }
+.msg-cell { max-width:200px; overflow:hidden; text-overflow:ellipsis; font-size:var(--font-xs); }
+.ts-cell { font-size:var(--font-xs); color:hsl(var(--muted-foreground)); }
 
 .empty-msg { text-align:center; padding:1.5rem; font-size:var(--font-sm); color:hsl(var(--muted-foreground)); }
 .small-btn {
