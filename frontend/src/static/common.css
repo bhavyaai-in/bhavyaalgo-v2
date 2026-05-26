@@ -6,8 +6,8 @@
 /* ─── Chip ───────────────────────────────────── */
 .chip {
   display:inline-flex; align-items:center; justify-content:center;
-  padding:.35rem .65rem;
-  height:30px;
+  padding: 3px 8px;
+  height: 20px;
   border:1px solid hsl(var(--border));
   border-radius:var(--radius);
   font-size:var(--font-xs); font-weight:500;

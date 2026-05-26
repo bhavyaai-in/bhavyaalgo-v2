@@ -462,13 +462,11 @@ func (a *App) fetchOptionQuotes(ctx context.Context, symbols []symAndTok, exchan
 			for _, item := range fetched {
 				if m, ok := item.(map[string]any); ok {
 					q := parseAliceQuote(m)
-					if q.ltp > 0 {
-						if sym, ok := m["symbol"].(string); ok {
-							result[sym] = q
-						}
-						if tok, ok := m["token"].(string); ok {
-							result[tok] = q
-						}
+					if sym, ok := m["symbol"].(string); ok {
+						result[sym] = q
+					}
+					if tok, ok := m["token"].(string); ok {
+						result[tok] = q
 					}
 				}
 			}
@@ -548,49 +546,68 @@ func fFrom(m map[string]any, key string) float64 {
 }
 
 func parseAliceQuote(m map[string]any) quoteResult {
-	// Alice response format varies; try common paths
+	// Try multiple response formats
 	var data map[string]any
 	if d, ok := m["data"].(map[string]any); ok {
 		data = d
+	} else if d, ok := m["instrument"].(map[string]any); ok {
+		data = d
+		for k, v := range m {
+			if k != "instrument" { data[k] = v }
+		}
 	} else {
 		data = m
 	}
-	f := func(key string) float64 {
-		if v, ok := data[key]; ok {
-			switch val := v.(type) {
-			case string:
-				f, _ := strconv.ParseFloat(val, 64)
-				return f
-			case float64:
-				return val
+	f := func(keys ...string) float64 {
+		for _, key := range keys {
+			if v, ok := data[key]; ok {
+				switch val := v.(type) {
+				case string:
+					if f, err := strconv.ParseFloat(val, 64); err == nil { return f }
+				case float64:
+					return val
+				}
 			}
 		}
 		return 0
 	}
-	i := func(key string) int64 {
-		if v, ok := data[key]; ok {
-			switch val := v.(type) {
-			case string:
-				n, _ := strconv.ParseInt(val, 10, 64)
-				return n
-			case float64:
-				return int64(val)
+	i := func(keys ...string) int64 {
+		for _, key := range keys {
+			if v, ok := data[key]; ok {
+				switch val := v.(type) {
+				case string:
+					if n, err := strconv.ParseInt(val, 10, 64); err == nil { return n }
+				case float64:
+					return int64(val)
+				}
 			}
 		}
 		return 0
 	}
+	// Check depth object for bid/ask (similar to Angel)
+	var bid, ask float64
+	if depth, ok := data["depth"].(map[string]any); ok {
+		if buy, ok := depth["buy"].([]any); ok && len(buy) > 0 {
+			if first, ok := buy[0].(map[string]any); ok { bid = fFrom(first, "price") }
+		}
+		if sell, ok := depth["sell"].([]any); ok && len(sell) > 0 {
+			if first, ok := sell[0].(map[string]any); ok { ask = fFrom(first, "price") }
+		}
+	}
+	if bid == 0 { bid = f("bid", "bidprice", "bp") }
+	if ask == 0 { ask = f("ask", "askprice", "ap") }
 	return quoteResult{
-		ltp:    f("ltp"),
-		bid:    f("bid"),
-		ask:    f("ask"),
-		bidQty: i("bid_qty"),
-		askQty: i("ask_qty"),
-		open:   f("open"),
-		high:   f("high"),
-		low:    f("low"),
-		close:  f("close"),
-		volume: i("volume"),
-		oi:     i("oi"),
+		ltp:    f("ltp", "lastprice", "lp"),
+		bid:    bid,
+		ask:    ask,
+		bidQty: i("bid_qty", "bidqty", "bq", "bidquantity"),
+		askQty: i("ask_qty", "askqty", "aq", "askquantity"),
+		open:   f("open", "open_price"),
+		high:   f("high", "high_price"),
+		low:    f("low", "low_price"),
+		close:  f("close", "close_price"),
+		volume: i("volume", "vol", "tradevolume", "trade_volume"),
+		oi:     i("oi", "opninterest", "open_interest"),
 	}
 }
 

@@ -382,7 +382,8 @@ header h2 { margin:0; }
 .search-item:hover { background:hsl(var(--muted)); }
 .search-item.highlighted { background:hsl(var(--primary)/.15); }
 .search-empty { padding:.5rem; text-align:center; font-size:var(--font-sm); color:hsl(var(--muted-foreground)); }
-.controls .chip { padding:.35rem .65rem; font-size:var(--font-sm); }
+.controls .chip { padding:.35rem .65rem; font-size:var(--font-sm);    height: 30px;
+    color: hsl(var(--muted-foreground)); }
 
 
 .summary { display:flex; gap:.75rem; margin-bottom:1rem; flex-wrap:wrap; }
