@@ -64,7 +64,6 @@ function handleLogout() {
           <button :class="{ active: activeTab === 'holdings' }" @click="go('holdings')">Holdings</button>
           <button :class="{ active: activeTab === 'margin' }" @click="go('margin')">Margin</button>
           <button :class="{ active: activeTab === 'strategies' }" @click="go('strategies')">Strategies</button>
-          <button :class="{ active: activeTab === 'scheduler' }" @click="go('scheduler')">Scheduler</button>
           <button :class="{ active: activeTab === 'apps' }" @click="go('apps')">Apps</button>
           <button :class="{ active: activeTab === 'settings' }" @click="go('settings')">Settings</button>
         </nav>
@@ -87,7 +86,6 @@ function handleLogout() {
       <button :class="{ active: activeTab === 'margin' }" @click="go('margin')">Margin</button>
       <button :class="{ active: activeTab === 'strategies' }" @click="go('strategies')">Strategies</button>
       <button :class="{ active: activeTab === 'apps' }" @click="go('apps')">Apps</button>
-      <button :class="{ active: activeTab === 'scheduler' }" @click="go('scheduler')">Scheduler</button>
       <button :class="{ active: activeTab === 'settings' }" @click="go('settings')">Settings</button>
       <button @click="watchlistOpen = true; menuOpen = false">📋 Watchlist</button>
       <button class="mobile-logout" @click="handleLogout">Logout</button>
