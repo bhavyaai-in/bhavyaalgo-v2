@@ -13,6 +13,7 @@ import (
 	"bhavyaaialgo/backend/internal/service"
 	"bhavyaaialgo/backend/internal/setup"
 	"bhavyaaialgo/backend/ws"
+	"bhavyaaialgo/backend/scheduler"
 )
 
 func main() {
@@ -67,6 +68,10 @@ func main() {
 	app.RegisterWatchlistRoutes(srv.Mux())
 	app.RegisterStrategyRoutes(srv.Mux())
 	app.RegisterOptionChainRoutes(srv.Mux())
+	sched := scheduler.New(app.TradingDB, app.MarketDB)
+	sched.InitDB()
+	sched.Start()
+	sched.RegisterRoutes(srv.Mux())
 	app.RegisterHistoricalRoutes(srv.Mux())
 	app.RegisterSettingsRoutes(srv.Mux())
 
