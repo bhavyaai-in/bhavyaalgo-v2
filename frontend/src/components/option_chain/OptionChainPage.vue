@@ -215,13 +215,17 @@ const liveChain = computed(() => {
     // Merge WebSocket live data
     if (ce) {
       const tick = ltpMap.value[ce.token]
-      if (tick?.ltp != null) { ce.ltp = tick.ltp; ce.bid = tick.bid ?? ce.bid; ce.ask = tick.ask ?? ce.ask }
+      if (tick?.ltp > 0) ce.ltp = tick.ltp
+      if (tick?.bid > 0) ce.bid = tick.bid
+      if (tick?.ask > 0) ce.ask = tick.ask
       if (tick?.oi > 0) ce.oi = tick.oi
       if (tick?.volume > 0) ce.volume = tick.volume
     }
     if (pe) {
       const tick = ltpMap.value[pe.token]
-      if (tick?.ltp != null) { pe.ltp = tick.ltp; pe.bid = tick.bid ?? pe.bid; pe.ask = tick.ask ?? pe.ask }
+      if (tick?.ltp > 0) pe.ltp = tick.ltp
+      if (tick?.bid > 0) pe.bid = tick.bid
+      if (tick?.ask > 0) pe.ask = tick.ask
       if (tick?.oi > 0) pe.oi = tick.oi
       if (tick?.volume > 0) pe.volume = tick.volume
     }
