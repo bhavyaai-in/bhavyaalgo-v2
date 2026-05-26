@@ -15,6 +15,9 @@ type Config struct {
 	MarketDBPath   string
 	TradingDBPath  string
 	BrokerAPIKey   string
+	AIAPIURL       string
+	AIAPIKey       string
+	AIModel        string
 }
 
 func Load() (*Config, error) {
@@ -26,6 +29,9 @@ func Load() (*Config, error) {
 		Port:          os.Getenv("PORT"),
 		DBPath:        os.Getenv("DB_PATH"),
 		BrokerAPIKey:  os.Getenv("BROKER_API_KEY"),
+		AIAPIURL:      os.Getenv("AI_API_URL"),
+		AIAPIKey:      os.Getenv("AI_API_KEY"),
+		AIModel:       os.Getenv("AI_MODEL"),
 	}
 
 	if cfg.Port == "" {

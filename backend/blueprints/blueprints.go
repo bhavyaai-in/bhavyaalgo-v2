@@ -66,4 +66,8 @@ func recoverHandler(next http.HandlerFunc) http.HandlerFunc {
 func (a *App) RegisterHistoricalRoutes(mux *http.ServeMux) {
 	h := &historical.Handler{MarketDB: a.MarketDB, TradingDB: a.TradingDB}
 	h.RegisterRoutes(mux)
+	// Auth-protected AI endpoint
+	mux.HandleFunc("POST /api/historical/ai-suggest", a.authMiddleware(func(w http.ResponseWriter, r *http.Request) {
+		h.AISuggest(w, r)
+	}))
 }

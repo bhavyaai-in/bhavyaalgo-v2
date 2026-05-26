@@ -53,6 +53,7 @@ func (h *Handler) RegisterRoutes(mux *http.ServeMux) {
 	mux.HandleFunc("GET /api/historical/exchanges", h.listExchanges)
 	mux.HandleFunc("GET /api/historical/underlyings", h.listUnderlyings)
 	mux.HandleFunc("POST /api/historical/download", h.download)
+	
 }
 
 func (h *Handler) listExchanges(w http.ResponseWriter, r *http.Request) {
@@ -213,6 +214,25 @@ func (h *Handler) download(w http.ResponseWriter, r *http.Request) {
 		"count":    len(candles),
 		"candles":  candles,
 	})
+}
+
+func (h *Handler) AISuggest(w http.ResponseWriter, r *http.Request) {
+	var req struct {
+		Query    string `json:"query"`
+		Exchange string `json:"exchange"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil || req.Query == "" {
+		writeJSON(w, 400, map[string]string{"error": "query required"})
+		return
+	}
+	exchange := req.Exchange
+	if exchange == "" { exchange = "NSE" }
+	result := GenerateSymbols(h.MarketDB, req.Query, exchange)
+	if result.Error != "" {
+		writeJSON(w, 500, map[string]any{"error": result.Error})
+		return
+	}
+	writeJSON(w, 200, result)
 }
 
 func writeJSON(w http.ResponseWriter, status int, v any) {

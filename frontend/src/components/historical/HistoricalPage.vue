@@ -100,6 +100,10 @@ const showAddItem = ref(false)
 const groupName = ref('')
 const settingsForm = ref({ cron: '0 15 * * 1-5', broker_priority: '', is_active: 1 })
 const itemForm = ref({ symbol: '', exchange: 'NSE', interval: '1d' })
+const aiQuery = ref('')
+const aiLoading = ref(false)
+const aiSuggestions = ref([])
+const aiError = ref('')
 const groupSearchQ = ref('')
 const groupSearchResults = ref([])
 
@@ -146,6 +150,33 @@ async function addGroupItem() {
   showAddItem.value = false; groupSearchQ.value = ''; groupSearchResults.value = []
   await loadGroupItems(activeGroup.value.id); await loadGroups()
 }
+async function askAI() {
+  if (!aiQuery.value || aiQuery.value.length < 3) return
+  aiLoading.value = true; aiError.value = ''; aiSuggestions.value = []
+  try {
+    const ex = typeof selectedExchange.value === 'object' ? selectedExchange.value.code : selectedExchange.value
+    const res = await api('/api/historical/ai-suggest', {
+      method: 'POST',
+      body: JSON.stringify({ query: aiQuery.value, exchange: ex || 'NSE' }),
+    })
+    aiSuggestions.value = res.symbols || []
+    if (!aiSuggestions.value.length) aiError.value = 'No symbols found. Try a different query.'
+  } catch (e) { aiError.value = e.message }
+  finally { aiLoading.value = false }
+}
+
+function acceptAll() {
+  for (const s of aiSuggestions.value) {
+    api('/api/scheduler/groups/' + activeGroup.value.id + '/items', {
+      method: 'POST', body: JSON.stringify({ symbol: s.symbol, exchange: s.exchange, interval: '1d' }),
+    }).catch(() => {})
+  }
+  aiSuggestions.value = []
+  aiQuery.value = ''
+  setTimeout(() => loadGroupItems(activeGroup.value.id), 500)
+  setTimeout(() => loadGroups(), 500)
+}
+
 async function deleteGroupItem(it) {
   await api(`/api/scheduler/items/${it.id}`, { method: 'DELETE' })
   await loadGroupItems(activeGroup.value.id); await loadGroups()
@@ -242,6 +273,28 @@ onMounted(loadGroups)
               <button class="chip" @click="showAddItem = true">+ Item</button>
               <button class="chip" @click="showSettings = true">Settings</button>
               <button class="chip primary" @click="runNow()">Run Now</button>
+            </div>
+          </div>
+
+          <!-- AI Assistant -->
+          <div class="ai-section">
+            <div class="ai-header"><span class="ai-icon" style="font-size:1.1rem">&#129302;</span> AI Symbol Finder</div>
+            <div class="ai-input-row">
+              <input v-model="aiQuery" placeholder="e.g. Nifty 50 stocks, companies >500Cr turnover..." class="inp" @keyup.enter="askAI" :disabled="aiLoading" />
+              <button class="chip primary" @click="askAI" :disabled="aiLoading || aiQuery.length < 3" style="flex-shrink:0">{{ aiLoading ? '...' : 'Ask AI' }}</button>
+            </div>
+            <div v-if="aiError" class="ai-error">{{ aiError }}</div>
+            <div v-if="aiSuggestions.length" class="ai-suggestions">
+              <div class="ai-sugg-header">
+                <span>{{ aiSuggestions.length }} symbols found</span>
+                <button class="chip primary sm" @click="acceptAll">+ Add All</button>
+              </div>
+              <div v-for="s in aiSuggestions" :key="s.symbol" class="ai-sugg-item">
+                <strong>{{ s.symbol }}</strong>
+                <span class="muted">{{ s.exchange }}</span>
+                <span class="muted" style="flex:1;font-size:.65rem">{{ s.name }}</span>
+                <span class="hint">{{ s.reason }}</span>
+              </div>
             </div>
           </div>
 
@@ -354,6 +407,19 @@ th { font-weight:600; font-size:var(--font-xs); color:hsl(var(--foreground)); po
 .vol { color:hsl(var(--muted-foreground)); }
 tr:hover td { background:hsl(var(--muted)/.3); }
 .error { color:hsl(var(--destructive)); margin-bottom:.5rem; }
+
+/* AI section */
+.ai-section { background:hsl(var(--primary)/.04); border:1px solid hsl(var(--primary)/.2); border-radius:var(--radius); padding:.7rem; margin-bottom:.6rem; }
+.ai-header { font-size:var(--font-sm); font-weight:600; margin-bottom:.5rem; display:flex; align-items:center; gap:6px; }
+.ai-input-row { display:flex; gap:.4rem; }
+.ai-input-row .inp { flex:1; }
+.ai-error { font-size:var(--font-xs); color:hsl(var(--destructive)); margin-top:.3rem; }
+.ai-suggestions { margin-top:.5rem; border:1px solid hsl(var(--border)); border-radius:var(--radius); overflow:hidden; }
+.ai-sugg-header { display:flex; justify-content:space-between; align-items:center; padding:.3rem .5rem; background:hsl(var(--muted)/.3); font-size:var(--font-xs); font-weight:600; }
+.ai-sugg-item { display:flex; align-items:center; gap:6px; padding:.25rem .5rem; border-bottom:1px solid hsl(var(--border)/.5); font-size:var(--font-xs); }
+.ai-sugg-item:last-child { border-bottom:none; }
+.ai-sugg-item strong { font-size:var(--font-sm); min-width:90px; }
+.hint { font-size:.6rem; color:hsl(var(--muted-foreground)); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; max-width:120px; }
 
 /* Scheduler section */
 .section-divider { margin:1.5rem 0; border:none; border-top:2px solid hsl(var(--border)); }
