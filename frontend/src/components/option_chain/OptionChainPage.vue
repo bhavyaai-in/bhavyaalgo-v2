@@ -134,19 +134,10 @@ async function loadChain() {
     // Convert expiry DD-MMM-YY to DDMMMYY for the API
     const expiryAPI = selectedExpiry.value.replace(/-/g, '')
     const res = await api(`/api/option-chain?underlying=${encodeURIComponent(selectedUnderlying.value)}&exchange=${encodeURIComponent(selectedExchange.value)}&expiry=${encodeURIComponent(expiryAPI)}&strike_count=${strikeCount.value}`)
-    const oldChain = chain.value
     chain.value = (res.chain || []).map(item => {
-      // Preserve OI from previous load if new OI is 0
-      if (!item.ce) item.ce = null
-      if (!item.pe) item.pe = null
-      if (item.ce) {
-        const old = oldChain.find(o => o.strike === item.strike)
-        if (old?.ce && old.ce.oi > 0 && !item.ce.oi) item.ce.oi = old.ce.oi
-      }
-      if (item.pe) {
-        const old = oldChain.find(o => o.strike === item.strike)
-        if (old?.pe && old.pe.oi > 0 && !item.pe.oi) item.pe.oi = old.pe.oi
-      }
+      // Populate oiCache with any OI we got from the REST API
+      if (item.ce?.oi > 0) oiCache.value[item.ce.token] = item.ce.oi
+      if (item.pe?.oi > 0) oiCache.value[item.pe.token] = item.pe.oi
       return item
     })
     underlyingLTP.value = res.underlying_ltp || 0
@@ -232,7 +223,13 @@ const liveChain = computed(() => {
       if (tick?.ltp > 0) ce.ltp = tick.ltp
       if (tick?.bid > 0) ce.bid = tick.bid
       if (tick?.ask > 0) ce.ask = tick.ask
-      if (tick?.oi > 0) ce.oi = tick.oi
+      // Use OI from: WebSocket tick > oiCache > REST
+      if (tick?.oi > 0) {
+        ce.oi = tick.oi
+        oiCache.value[ce.token] = tick.oi
+      } else if (oiCache.value[ce.token] > 0) {
+        ce.oi = oiCache.value[ce.token]
+      }
       if (tick?.volume > 0) ce.volume = tick.volume
     }
     if (pe) {
@@ -240,7 +237,12 @@ const liveChain = computed(() => {
       if (tick?.ltp > 0) pe.ltp = tick.ltp
       if (tick?.bid > 0) pe.bid = tick.bid
       if (tick?.ask > 0) pe.ask = tick.ask
-      if (tick?.oi > 0) pe.oi = tick.oi
+      if (tick?.oi > 0) {
+        pe.oi = tick.oi
+        oiCache.value[pe.token] = tick.oi
+      } else if (oiCache.value[pe.token] > 0) {
+        pe.oi = oiCache.value[pe.token]
+      }
       if (tick?.volume > 0) pe.volume = tick.volume
     }
     return { ...item, ce, pe }
