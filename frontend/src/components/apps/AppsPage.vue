@@ -4,7 +4,7 @@ import { useRouter } from 'vue-router'
 const router = useRouter()
 const apps = [
   { name: 'Data Downloader', desc: 'Download historical OHLCV data for analysis and backtesting', icon: '⬇️', color: '#3B82F6', route: '/historical' },
-  { name: 'Data Scheduler', desc: 'Schedule automatic data downloads with cron and broker priority', icon: '⏰', color: '#10B981', route: '/scheduler' },
+  { name: 'Data Scheduler', desc: 'Schedule automatic data downloads with cron and broker priority', icon: '⏰', color: '#10B981', route: '/historical' },
   { name: 'Option Chain', desc: 'View real-time option chain with CE/PE data, OI, and live prices', icon: '📊', color: '#8B5CF6', route: '/optionchain' },
   { name: 'Scalper', desc: 'Quick scalp trades with hotkeys and preset configurations', icon: '⚡', color: '#F59E0B' },
   { name: 'Backtest Engine', desc: 'Run historical backtests on your strategies', icon: '🧪', color: '#10B981' },

@@ -14,7 +14,6 @@ import SettingsPage from '../components/settings/SettingsPage.vue'
 import AppsPage from '../components/apps/AppsPage.vue'
 import OptionChainPage from '../components/option_chain/OptionChainPage.vue'
 import HistoricalPage from '../components/historical/HistoricalPage.vue'
-import SchedulerPage from '../components/scheduler/SchedulerPage.vue'
 
 const router = useRouter()
 const route = useRoute()
@@ -109,7 +108,6 @@ function handleLogout() {
         <section v-if="activeTab === 'strategies'" class="tab-content"><StrategiesPage /></section>
         <section v-if="activeTab === 'optionchain'" class="tab-content wide"><OptionChainPage /></section>
         <section v-if="activeTab === 'historical'" class="tab-content wide"><HistoricalPage /></section>
-        <section v-if="activeTab === 'scheduler'" class="tab-content wide"><SchedulerPage /></section>
         <section v-if="activeTab === 'apps'" class="tab-content"><AppsPage /></section>
         <section v-if="activeTab === 'settings'" class="tab-content"><SettingsPage /></section>
       </main>
