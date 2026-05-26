@@ -13,6 +13,7 @@ const routes = [
   { path: '/strategies', component: Dashboard, meta: { requiresAuth: true } },
   { path: '/optionchain', component: Dashboard, meta: { requiresAuth: true } },
   { path: '/historical', component: Dashboard, meta: { requiresAuth: true } },
+  { path: '/scheduler', component: Dashboard, meta: { requiresAuth: true } },
   { path: '/apps', component: Dashboard, meta: { requiresAuth: true } },
   { path: '/settings', component: Dashboard, meta: { requiresAuth: true } },
 ]
