@@ -214,6 +214,15 @@ const liveUnderlyingLTP = computed(() => {
   return underlyingLTP.value
 })
 
+const livePCR = computed(() => {
+  let ceOi = 0, peOi = 0
+  for (const item of liveChain.value) {
+    if (item.ce?.oi > 0) ceOi += item.ce.oi
+    if (item.pe?.oi > 0) peOi += item.pe.oi
+  }
+  return ceOi > 0 ? Math.round((peOi / ceOi) * 100) / 100 : 0
+})
+
 const liveChain = computed(() => {
   return chain.value.map(item => {
     const ce = item.ce ? { ...item.ce } : null
@@ -308,7 +317,7 @@ function changeClass(item, side, strike) {
       </div>
       <div class="card">
         <span class="card-label">PCR (OI)</span>
-        <span class="card-value" :class="pcr > 1 ? 'green' : 'yellow'">{{ pcr.toFixed(2) }}</span>
+        <span class="card-value" :class="livePCR > 1 ? 'green' : 'yellow'">{{ livePCR.toFixed(2) }}</span>
         <span class="card-sub">Put/Call Ratio</span>
       </div>
     </div>
