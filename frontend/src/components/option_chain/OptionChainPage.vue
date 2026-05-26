@@ -134,7 +134,21 @@ async function loadChain() {
     // Convert expiry DD-MMM-YY to DDMMMYY for the API
     const expiryAPI = selectedExpiry.value.replace(/-/g, '')
     const res = await api(`/api/option-chain?underlying=${encodeURIComponent(selectedUnderlying.value)}&exchange=${encodeURIComponent(selectedExchange.value)}&expiry=${encodeURIComponent(expiryAPI)}&strike_count=${strikeCount.value}`)
-    chain.value = res.chain || []
+    const oldChain = chain.value
+    chain.value = (res.chain || []).map(item => {
+      // Preserve OI from previous load if new OI is 0
+      if (!item.ce) item.ce = null
+      if (!item.pe) item.pe = null
+      if (item.ce) {
+        const old = oldChain.find(o => o.strike === item.strike)
+        if (old?.ce && old.ce.oi > 0 && !item.ce.oi) item.ce.oi = old.ce.oi
+      }
+      if (item.pe) {
+        const old = oldChain.find(o => o.strike === item.strike)
+        if (old?.pe && old.pe.oi > 0 && !item.pe.oi) item.pe.oi = old.pe.oi
+      }
+      return item
+    })
     underlyingLTP.value = res.underlying_ltp || 0
     underlyingClose.value = res.underlying_close || 0
     underlyingToken.value = res.underlying_token || ''
