@@ -29,6 +29,7 @@ const underlyingToken = ref('')
 const atmStrike = ref(0)
 const pcr = ref(0)
 const ltpMap = ref({})
+const oiCache = ref({}) // best-known OI values, token -> oi
 
 // Live tick subscription
 ws.onTick((tick) => {
