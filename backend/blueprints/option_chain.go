@@ -739,16 +739,16 @@ func (a *App) getIndexPrice(ctx context.Context, symbol string) (float64, float6
 		}
 	case "aliceblue":
 		ac := aliceblue.NewClient(brokerAPI, brokerAPISecret)
-		// Use symbol instead of token for Alice Blue (cross-broker compat)
 		resp, err := ac.GetQuote(brokerToken, "NSE", symbol, symbol)
 		if err != nil {
 			resp, err = ac.GetQuote(brokerToken, "NSE", symbol, token)
-			if err != nil {
-				return 0, 0, "", err
-			}
 		}
-		q := parseAliceQuote(resp)
-		return q.ltp, q.close, token, nil
+		if err == nil {
+			q := parseAliceQuote(resp)
+			return q.ltp, q.close, token, nil
+		}
+		// Return token even when quote fails — frontend uses it for WebSocket lookup
+		return 0, 0, token, nil
 	}
 	return 0, 0, "", fmt.Errorf("unable to fetch index price for %s", symbol)
 }

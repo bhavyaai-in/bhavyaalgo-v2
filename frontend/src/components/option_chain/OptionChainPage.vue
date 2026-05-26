@@ -216,14 +216,14 @@ const liveChain = computed(() => {
     if (ce) {
       const tick = ltpMap.value[ce.token]
       if (tick?.ltp != null) { ce.ltp = tick.ltp; ce.bid = tick.bid ?? ce.bid; ce.ask = tick.ask ?? ce.ask }
-      if (tick?.oi != null) ce.oi = tick.oi
-      if (tick?.volume != null) ce.volume = tick.volume
+      if (tick?.oi > 0) ce.oi = tick.oi
+      if (tick?.volume > 0) ce.volume = tick.volume
     }
     if (pe) {
       const tick = ltpMap.value[pe.token]
       if (tick?.ltp != null) { pe.ltp = tick.ltp; pe.bid = tick.bid ?? pe.bid; pe.ask = tick.ask ?? pe.ask }
-      if (tick?.oi != null) pe.oi = tick.oi
-      if (tick?.volume != null) pe.volume = tick.volume
+      if (tick?.oi > 0) pe.oi = tick.oi
+      if (tick?.volume > 0) pe.volume = tick.volume
     }
     return { ...item, ce, pe }
   })
