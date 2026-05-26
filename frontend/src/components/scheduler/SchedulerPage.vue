@@ -6,6 +6,9 @@ const groups = ref([])
 const activeGroup = ref(null)
 const items = ref([])
 const logs = ref([])
+const showCreateGroup = ref(false)
+const showDeleteGroup = ref(null)
+const groupName = ref('')
 const showSettings = ref(false)
 const settingsForm = ref({ cron: '0 15 * * 1-5', broker_priority: '', is_active: 1 })
 const showAddItem = ref(false)
@@ -21,16 +24,26 @@ async function loadGroups() {
 }
 
 async function createGroup() {
-  const name = prompt('Group name:')
-  if (!name) return
-  await api('/api/scheduler/groups', { method: 'POST', body: JSON.stringify({ name }) })
+  showCreateGroup.value = true
+  groupName.value = ''
+}
+async function submitCreateGroup() {
+  if (!groupName.value) return
+  await api('/api/scheduler/groups', { method: 'POST', body: JSON.stringify({ name: groupName.value }) })
+  showCreateGroup.value = false
+  groupName.value = ''
   await loadGroups()
 }
 
 async function deleteGroup(g) {
-  if (!confirm(`Delete "${g.name}"?`)) return
+  showDeleteGroup.value = g
+}
+async function confirmDelete() {
+  if (!showDeleteGroup.value) return
+  const g = showDeleteGroup.value
   await api(`/api/scheduler/groups/${g.id}`, { method: 'DELETE' })
   if (activeGroup.value?.id === g.id) { activeGroup.value = null; items.value = []; logs.value = [] }
+  showDeleteGroup.value = false
   await loadGroups()
 }
 
@@ -137,6 +150,33 @@ onMounted(loadGroups)
             <button class="chip" @click="showSettings = true">Settings</button>
             <button class="chip primary" @click="showAddItem = true">+ Add Item</button>
             <button class="chip" @click="runNow(activeGroup.id)">Run Now</button>
+          </div>
+        </div>
+
+        <!-- Create Group Modal -->
+        <div v-if="showCreateGroup" class="modal-overlay" @click.self="showCreateGroup = false">
+          <div class="modal-box sm">
+            <h4>Create Group</h4>
+            <div class="form-row">
+              <label>Group Name</label>
+              <input v-model="groupName" placeholder="Enter group name..." class="inp" @keyup.enter="submitCreateGroup" autofocus />
+            </div>
+            <div class="modal-actions">
+              <button class="chip primary" @click="submitCreateGroup">Create</button>
+              <button class="chip" @click="showCreateGroup = false">Cancel</button>
+            </div>
+          </div>
+        </div>
+
+        <!-- Delete Confirm Modal -->
+        <div v-if="showDeleteGroup" class="modal-overlay" @click.self="showDeleteGroup = false">
+          <div class="modal-box sm">
+            <h4>Delete Group</h4>
+            <p style="font-size:var(--font-sm);color:hsl(var(--muted-foreground));margin:.5rem 0">Delete "<strong>{{ showDeleteGroup?.name }}</strong>" and all its items and logs?</p>
+            <div class="modal-actions">
+              <button class="chip danger" @click="confirmDelete">Delete</button>
+              <button class="chip" @click="showDeleteGroup = false">Cancel</button>
+            </div>
           </div>
         </div>
 
