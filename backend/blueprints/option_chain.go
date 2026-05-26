@@ -658,7 +658,7 @@ func (a *App) getUnderlyingPrice(ctx context.Context, symbol, exchange string) (
 		ac := angel.NewClient(apiKey)
 		resp, err := ac.GetQuote(brokerToken, quoteExchange, symbol, token)
 		if err != nil {
-			return 0, 0, "", err
+			return 0, 0, token, err
 		}
 		if dm, ok := resp["data"].(map[string]any); ok {
 			if fetched, ok := dm["fetched"].([]any); ok && len(fetched) > 0 {
@@ -678,7 +678,7 @@ func (a *App) getUnderlyingPrice(ctx context.Context, symbol, exchange string) (
 		if err != nil {
 			resp2, err2 := ac.GetQuote(brokerToken, quoteExchange, symbol, token)
 			if err2 != nil {
-				return 0, 0, "", err2
+				return 0, 0, token, err2
 			}
 			resp = resp2
 		}
@@ -686,11 +686,11 @@ func (a *App) getUnderlyingPrice(ctx context.Context, symbol, exchange string) (
 		ltp = q.ltp
 		closeP = q.close
 	default:
-		return 0, 0, "", fmt.Errorf("unsupported broker: %s", brokerName)
+		return 0, 0, token, fmt.Errorf("unsupported broker: %s", brokerName)
 	}
 
 	if ltp <= 0 {
-		return 0, 0, "", fmt.Errorf("failed to fetch LTP for %s", symbol)
+		return 0, 0, token, fmt.Errorf("failed to fetch LTP for %s", symbol)
 	}
 	return ltp, closeP, token, nil
 }
