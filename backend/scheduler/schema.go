@@ -27,7 +27,8 @@ CREATE TABLE IF NOT EXISTS scheduler_group_items (
     exchange TEXT NOT NULL,
     token TEXT NOT NULL DEFAULT '',
     interval TEXT NOT NULL DEFAULT '1d',
-    is_active INTEGER NOT NULL DEFAULT 1
+    is_active INTEGER NOT NULL DEFAULT 1,
+    UNIQUE(group_id, symbol, exchange)
 );
 
 CREATE TABLE IF NOT EXISTS scheduler_job_logs (

@@ -41,6 +41,10 @@ func New(tradingDB, marketDB *sql.DB) *Service {
 
 func (s *Service) InitDB() error {
 	_, err := s.TradingDB.Exec(CreateTablesSQL)
+	if err != nil {
+		return err
+	}
+	_, err = s.TradingDB.Exec(`CREATE UNIQUE INDEX IF NOT EXISTS idx_scheduler_group_items_dedup ON scheduler_group_items(group_id, symbol, exchange)`)
 	return err
 }
 
@@ -321,6 +325,17 @@ func (s *Service) handleAddItem(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "symbol required", 400); return
 	}
 	if req.Interval == "" { req.Interval = "1d" }
+
+	var existing int
+	s.TradingDB.QueryRow(
+		`SELECT COUNT(*) FROM scheduler_group_items WHERE group_id=? AND symbol=? AND exchange=?`,
+		gid, req.Symbol, req.Exchange,
+	).Scan(&existing)
+	if existing > 0 {
+		writeJSON(w, 409, map[string]string{"error": "symbol already exists in group"})
+		return
+	}
+
 	if req.Token == "" {
 		s.MarketDB.QueryRow(`SELECT token FROM master_contracts WHERE symbol=? AND exchange=? LIMIT 1`, req.Symbol, req.Exchange).Scan(&req.Token)
 	}

@@ -6,15 +6,16 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"log"
 	"net/http"
 	"os"
 	"strings"
+	"time"
 )
 
-// AIRequest generates symbol suggestions from natural language queries.
 type AIRequest struct {
-	Query    string   `json:"query"`
-	Exchange string   `json:"exchange"`
+	Query    string `json:"query"`
+	Exchange string `json:"exchange"`
 }
 
 type AISymbol struct {
@@ -26,7 +27,21 @@ type AISymbol struct {
 
 type AIResponse struct {
 	Symbols []AISymbol `json:"symbols"`
-	Error   string      `json:"error,omitempty"`
+	Error   string     `json:"error,omitempty"`
+}
+
+var aiHTTP = &http.Client{Timeout: 60 * time.Second}
+
+func parseSymbols(content string) []AISymbol {
+	var aiResp AIResponse
+	if err := json.Unmarshal([]byte(content), &aiResp); err == nil && len(aiResp.Symbols) > 0 {
+		return aiResp.Symbols
+	}
+	var arr []AISymbol
+	if err := json.Unmarshal([]byte(content), &arr); err == nil {
+		return arr
+	}
+	return nil
 }
 
 func GenerateSymbols(db *sql.DB, query, exchange string) *AIResponse {
@@ -42,17 +57,16 @@ func GenerateSymbols(db *sql.DB, query, exchange string) *AIResponse {
 	}
 
 	systemPrompt := fmt.Sprintf(`You are a stock market assistant for Indian markets (NSE, BSE, NFO).
-Given a natural language query, generate a list of relevant stock/ETF/index symbols.
+Given a user query, generate a JSON list of matching stock/index/ETF symbols.
 
 Rules:
-- Only return symbols that exist on %s exchange
-- Return the SYMBOL as per NSE/BSE listing (e.g., RELIANCE, TCS, SBIN, NIFTY, BANKNIFTY)
-- If the user asks about indices like "Nifty 50", return the 50 constituent stocks
-- If the user asks about specific criteria (turnover, market cap, sector), use your knowledge
-- Return max 50 symbols per query
-- For each symbol provide: symbol, exchange, a short name/description, and reason for inclusion
+- Return symbols as per NSE/BSE listing (e.g. RELIANCE, TCS, SBIN, NIFTY, BANKNIFTY)
+- All symbols must exist on %s exchange
+- If the user asks for an index like "Nifty 50", "Nifty Next 50", "Bank Nifty", etc. — return ALL constituent stocks (50 for Nifty 50, 50 for Nifty Next 50, 12 for Bank Nifty, etc.)
+- Always return the complete list — do not skip any constituent
+- Include symbol, exchange, a short name/description, and reason for inclusion
+- Return ONLY valid JSON, no markdown
 
-Respond in JSON format ONLY:
 {"symbols": [{"symbol": "RELIANCE", "exchange": "NSE", "name": "Reliance Industries Ltd", "reason": "Nifty 50 constituent"}]}`, exchange)
 
 	payload := map[string]any{
@@ -61,8 +75,9 @@ Respond in JSON format ONLY:
 			{"role": "system", "content": systemPrompt},
 			{"role": "user", "content": query},
 		},
-		"temperature": 0.3,
-		"max_tokens":  2000,
+		"response_format": map[string]string{"type": "json_object"},
+		"temperature":     0,
+		"max_tokens":     4000,
 	}
 
 	body, _ := json.Marshal(payload)
@@ -73,15 +88,24 @@ Respond in JSON format ONLY:
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("Authorization", "Bearer "+apiKey)
 
-	resp, err := http.DefaultClient.Do(req)
+	resp, err := aiHTTP.Do(req)
 	if err != nil {
 		return &AIResponse{Error: fmt.Sprintf("api error: %v", err)}
 	}
 	defer resp.Body.Close()
 
 	respBody, _ := io.ReadAll(resp.Body)
+	if resp.StatusCode != http.StatusOK {
+		b := strings.TrimSpace(string(respBody))
+		if len(b) > 200 {
+			b = b[:200]
+		}
+		if b == "" {
+			b = "(empty body)"
+		}
+		return &AIResponse{Error: fmt.Sprintf("AI API returned HTTP %d: %s", resp.StatusCode, b)}
+	}
 
-	// Parse OpenAI response
 	var openAIResp struct {
 		Choices []struct {
 			Message struct {
@@ -90,7 +114,11 @@ Respond in JSON format ONLY:
 		} `json:"choices"`
 	}
 	if err := json.Unmarshal(respBody, &openAIResp); err != nil {
-		return &AIResponse{Error: fmt.Sprintf("parse error: %v", err)}
+		b := strings.TrimSpace(string(respBody))
+		if len(b) > 200 {
+			b = b[:200]
+		}
+		return &AIResponse{Error: fmt.Sprintf("parse error: %v - body: %s", err, b)}
 	}
 	if len(openAIResp.Choices) == 0 {
 		return &AIResponse{Error: "no response from AI"}
@@ -98,38 +126,40 @@ Respond in JSON format ONLY:
 
 	content := openAIResp.Choices[0].Message.Content
 	content = strings.TrimSpace(content)
-	// Remove code block markers if present
 	content = strings.TrimPrefix(content, "```json")
 	content = strings.TrimPrefix(content, "```")
 	content = strings.TrimSuffix(content, "```")
 	content = strings.TrimSpace(content)
 
-	var aiResp AIResponse
-	if err := json.Unmarshal([]byte(content), &aiResp); err != nil {
-		return &AIResponse{Error: fmt.Sprintf("AI response parse error: %v - response: %s", err, content[:min(len(content), 500)])}
+	symbols := parseSymbols(content)
+	if symbols == nil {
+		return &AIResponse{Error: fmt.Sprintf("AI response parse error: unrecognized JSON format - response: %s", content[:min(len(content), 500)])}
 	}
 
-	// Verify symbols exist in master_contracts and fill in exchange from DB
 	var verified []AISymbol
-	for _, s := range aiResp.Symbols {
-		if s.Symbol == "" {
+	var skipped []string
+	seen := map[string]bool{}
+	for _, s := range symbols {
+		if s.Symbol == "" || seen[strings.ToUpper(s.Symbol)] {
 			continue
 		}
-		// Verify in DB
+		seen[strings.ToUpper(s.Symbol)] = true
 		var dbSymbol, dbExchange string
 		err := db.QueryRow(
 			"SELECT symbol, exchange FROM master_contracts WHERE symbol=? AND (exchange=? OR exchange='NSE' OR exchange='BSE') LIMIT 1",
 			strings.ToUpper(s.Symbol), exchange,
 		).Scan(&dbSymbol, &dbExchange)
 		if err != nil {
+			skipped = append(skipped, s.Symbol)
 			continue
 		}
 		s.Symbol = dbSymbol
 		s.Exchange = dbExchange
 		verified = append(verified, s)
-		if len(verified) >= 50 {
-			break
-		}
+	}
+
+	if len(skipped) > 0 {
+		log.Printf("AI suggest: skipped %d symbols not in DB: %s", len(skipped), strings.Join(skipped, ", "))
 	}
 
 	return &AIResponse{Symbols: verified}

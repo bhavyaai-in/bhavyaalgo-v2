@@ -165,16 +165,33 @@ async function askAI() {
   finally { aiLoading.value = false }
 }
 
-function acceptAll() {
-  for (const s of aiSuggestions.value) {
+async function acceptAll() {
+  const existing = await api('/api/scheduler/groups/' + activeGroup.value.id + '/items')
+  const seen = new Set(existing.map(i => i.symbol + '|' + i.exchange))
+  const adds = aiSuggestions.value.filter(s => !seen.has(s.symbol + '|' + (s.exchange || 'NSE')))
+  await Promise.all(adds.map(s =>
     api('/api/scheduler/groups/' + activeGroup.value.id + '/items', {
       method: 'POST', body: JSON.stringify({ symbol: s.symbol, exchange: s.exchange, interval: '1d' }),
     }).catch(() => {})
-  }
+  ))
   aiSuggestions.value = []
   aiQuery.value = ''
-  setTimeout(() => loadGroupItems(activeGroup.value.id), 500)
-  setTimeout(() => loadGroups(), 500)
+  await Promise.all([loadGroupItems(activeGroup.value.id), loadGroups()])
+}
+
+async function replaceAll() {
+  const existing = await api('/api/scheduler/groups/' + activeGroup.value.id + '/items')
+  await Promise.all(existing.map(it =>
+    api('/api/scheduler/items/' + it.id, { method: 'DELETE' }).catch(() => {})
+  ))
+  await Promise.all(aiSuggestions.value.map(s =>
+    api('/api/scheduler/groups/' + activeGroup.value.id + '/items', {
+      method: 'POST', body: JSON.stringify({ symbol: s.symbol, exchange: s.exchange, interval: '1d' }),
+    }).catch(() => {})
+  ))
+  aiSuggestions.value = []
+  aiQuery.value = ''
+  await Promise.all([loadGroupItems(activeGroup.value.id), loadGroups()])
 }
 
 async function deleteGroupItem(it) {
@@ -286,8 +303,11 @@ onMounted(loadGroups)
             <div v-if="aiError" class="ai-error">{{ aiError }}</div>
             <div v-if="aiSuggestions.length" class="ai-suggestions">
               <div class="ai-sugg-header">
-                <span>{{ aiSuggestions.length }} symbols found</span>
-                <button class="chip primary sm" @click="acceptAll">+ Add All</button>
+                <span>{{ aiSuggestions.length }} symbols found · {{ groupItems.length }} in group</span>
+                <div class="ai-sugg-actions">
+                  <button class="chip primary sm" @click="acceptAll">+ Add New</button>
+                  <button class="chip sm" @click="replaceAll">Replace All</button>
+                </div>
               </div>
               <div v-for="s in aiSuggestions" :key="s.symbol" class="ai-sugg-item">
                 <strong>{{ s.symbol }}</strong>
@@ -416,6 +436,7 @@ tr:hover td { background:hsl(var(--muted)/.3); }
 .ai-error { font-size:var(--font-xs); color:hsl(var(--destructive)); margin-top:.3rem; }
 .ai-suggestions { margin-top:.5rem; border:1px solid hsl(var(--border)); border-radius:var(--radius); overflow:hidden; }
 .ai-sugg-header { display:flex; justify-content:space-between; align-items:center; padding:.3rem .5rem; background:hsl(var(--muted)/.3); font-size:var(--font-xs); font-weight:600; }
+.ai-sugg-actions { display:flex; gap:4px; }
 .ai-sugg-item { display:flex; align-items:center; gap:6px; padding:.25rem .5rem; border-bottom:1px solid hsl(var(--border)/.5); font-size:var(--font-xs); }
 .ai-sugg-item:last-child { border-bottom:none; }
 .ai-sugg-item strong { font-size:var(--font-sm); min-width:90px; }
