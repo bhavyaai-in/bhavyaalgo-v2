@@ -13,3 +13,4 @@ frontend copy/
 *.png
 .playwright-mcp/
 backend/db/*.sql.old
+backend/seed.json
