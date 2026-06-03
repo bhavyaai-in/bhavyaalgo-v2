@@ -8,50 +8,56 @@ import (
 )
 
 type Config struct {
-	AdminEmail     string
-	AdminPassword  string
-	Port           string
-	DBPath         string
-	MarketDBPath   string
-	TradingDBPath  string
-	BrokerAPIKey   string
-	AIAPIURL       string
-	AIAPIKey       string
-	AIModel        string
+	AdminEmail       string
+	AdminPassword    string
+	Port             string
+	DBPath           string
+	MarketDBPath     string
+	TradingDBPath    string
+	HistoricalDBPath string
+	BrokerAPIKey     string
+	StaticDir        string
+	AIAPIURL         string
+	AIAPIKey         string
+	AIModel          string
 }
 
 func Load() (*Config, error) {
 	loadEnvFile()
 
 	cfg := &Config{
-		AdminEmail:    os.Getenv("ADMIN_EMAIL"),
-		AdminPassword: os.Getenv("ADMIN_PASSWORD"),
-		Port:          os.Getenv("PORT"),
-		DBPath:        os.Getenv("DB_PATH"),
-		BrokerAPIKey:  os.Getenv("BROKER_API_KEY"),
-		AIAPIURL:      os.Getenv("AI_API_URL"),
-		AIAPIKey:      os.Getenv("AI_API_KEY"),
-		AIModel:       os.Getenv("AI_MODEL"),
+		AdminEmail:       os.Getenv("ADMIN_EMAIL"),
+		AdminPassword:    os.Getenv("ADMIN_PASSWORD"),
+		Port:             os.Getenv("PORT"),
+		DBPath:           os.Getenv("DB_PATH"),
+		MarketDBPath:     os.Getenv("MARKET_DB_PATH"),
+		TradingDBPath:    os.Getenv("TRADING_DB_PATH"),
+		HistoricalDBPath: os.Getenv("HISTORICAL_DB_PATH"),
+		BrokerAPIKey:     os.Getenv("BROKER_API_KEY"),
+		StaticDir:        os.Getenv("STATIC_DIR"), // <-- Read from env
+		AIAPIURL:         os.Getenv("AI_API_URL"),
+		AIAPIKey:         os.Getenv("AI_API_KEY"),
+		AIModel:          os.Getenv("AI_MODEL"),
 	}
 
+	// Apply defaults if empty
 	if cfg.Port == "" {
-		cfg.Port = "8080"
+		cfg.Port = "8081"
 	}
 	if cfg.DBPath == "" {
 		cfg.DBPath = "data.db"
 	}
 	if cfg.MarketDBPath == "" {
-		cfg.MarketDBPath = os.Getenv("MARKET_DB_PATH")
-	}
-	if cfg.MarketDBPath == "" {
-		cfg.MarketDBPath = "data-market.db"
+		cfg.MarketDBPath = "db/data-market.db"
 	}
 	if cfg.TradingDBPath == "" {
-		cfg.TradingDBPath = os.Getenv("TRADING_DB_PATH")
+		cfg.TradingDBPath = "db/data-trading.db"
 	}
-	if cfg.TradingDBPath == "" {
-		cfg.TradingDBPath = "data-trading.db"
+
+	if cfg.HistoricalDBPath == "" {
+		cfg.HistoricalDBPath = "db/historical.duckdb"
 	}
+
 	if cfg.AdminEmail == "" || cfg.AdminPassword == "" {
 		return nil, fmt.Errorf("ADMIN_EMAIL and ADMIN_PASSWORD must be set in .env")
 	}

@@ -26,21 +26,21 @@ import (
 )
 
 type Server struct {
-	MarketDB           *sql.DB
-	TradingDB          *sql.DB
-	MarketQ            *marketdb.Queries
-	TradingQ           *tradingdb.Queries
-	Sessions           SessionStore
-	Hub                *ws.Hub
-	Upgrader           websocket.Upgrader
-	Config             *Config
-	adminPasswordHash  []byte
-	logger             *slog.Logger
-	mux                *http.ServeMux
-	httpServer         *http.Server
-	rateLimiters       map[string]*rateLimiter
-	rateLimitMu        sync.Mutex
-	done               chan struct{}
+	MarketDB          *sql.DB
+	TradingDB         *sql.DB
+	MarketQ           *marketdb.Queries
+	TradingQ          *tradingdb.Queries
+	Sessions          SessionStore
+	Hub               *ws.Hub
+	Upgrader          websocket.Upgrader
+	Config            *Config
+	adminPasswordHash []byte
+	logger            *slog.Logger
+	mux               *http.ServeMux
+	httpServer        *http.Server
+	rateLimiters      map[string]*rateLimiter
+	rateLimitMu       sync.Mutex
+	done              chan struct{}
 }
 
 type Config struct {
