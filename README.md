@@ -44,6 +44,7 @@ Algorithmic trading platform with Angel One broker integration. Live market data
 # Backend
 cd backend
 cp .env.example .env    # configure ADMIN_EMAIL / ADMIN_PASSWORD
+cp seed.sample.json seed.json   # configure your broker credentials
 go mod tidy
 go run .                # starts on :8080
 
