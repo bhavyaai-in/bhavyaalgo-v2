@@ -27,16 +27,25 @@ type Service struct {
 	store     *historical.Store
 }
 
-func New(tradingDB, marketDB *sql.DB) *Service {
+// Update New to accept the historical DB path from your main application config
+func New(tradingDB, marketDB *sql.DB, historicalDBPath string) (*Service, error) {
+	// 1. Get the store using the path from environment configuration
+	store := historical.GetStore(historicalDBPath)
+
+	// 2. Initialize it and catch potential errors (e.g., file locked, bad directory)
+	if err := store.Init(); err != nil {
+		return nil, fmt.Errorf("failed to initialize historical store: %w", err)
+	}
+
 	s := &Service{
 		TradingDB: tradingDB,
 		MarketDB:  marketDB,
 		cron:      cron.New(cron.WithLocation(time.UTC)),
 		entries:   make(map[int64]cron.EntryID),
-		store:     historical.GetStore(),
+		store:     store,
 	}
-	s.store.Init()
-	return s
+
+	return s, nil
 }
 
 func (s *Service) InitDB() error {
@@ -271,23 +280,31 @@ func (s *Service) RegisterRoutes(mux *http.ServeMux) {
 
 func (s *Service) handleListGroups(w http.ResponseWriter, r *http.Request) {
 	rows, e := s.TradingDB.Query(`SELECT g.id, g.name, COALESCE(gs.cron_expression,''), COALESCE(gs.is_active,0), COALESCE(gs.broker_priority,''), COALESCE(gs.last_run_status,''), (SELECT COUNT(*) FROM scheduler_group_items WHERE group_id=g.id) FROM scheduler_groups g LEFT JOIN scheduler_group_settings gs ON gs.group_id=g.id ORDER BY g.id`)
-	if e != nil { writeJSON(w, 500, map[string]string{"error": e.Error()}); return }
+	if e != nil {
+		writeJSON(w, 500, map[string]string{"error": e.Error()})
+		return
+	}
 	defer rows.Close()
 	var out []map[string]any
 	for rows.Next() {
-		var id int64; var name, ce, bp, lr string; var ia, ic int
+		var id int64
+		var name, ce, bp, lr string
+		var ia, ic int
 		if rows.Scan(&id, &name, &ce, &ia, &bp, &lr, &ic) == nil {
 			out = append(out, map[string]any{"id": id, "name": name, "cron": ce, "is_active": ia, "broker_priority": bp, "last_run": lr, "item_count": ic})
 		}
 	}
-	if out == nil { out = []map[string]any{} }
+	if out == nil {
+		out = []map[string]any{}
+	}
 	writeJSON(w, 200, out)
 }
 
 func (s *Service) handleCreateGroup(w http.ResponseWriter, r *http.Request) {
 	var req struct{ Name string }
 	if json.NewDecoder(r.Body).Decode(&req) != nil || req.Name == "" {
-		http.Error(w, "name required", 400); return
+		http.Error(w, "name required", 400)
+		return
 	}
 	var id int64
 	s.TradingDB.QueryRow(`INSERT INTO scheduler_groups (name) VALUES (?) RETURNING id`, req.Name).Scan(&id)
@@ -305,16 +322,23 @@ func (s *Service) handleDeleteGroup(w http.ResponseWriter, r *http.Request) {
 func (s *Service) handleListItems(w http.ResponseWriter, r *http.Request) {
 	gid := parseID(r)
 	rows, e := s.TradingDB.Query(`SELECT id, symbol, exchange, token, interval, is_active FROM scheduler_group_items WHERE group_id=? ORDER BY id`, gid)
-	if e != nil { writeJSON(w, 500, map[string]string{"error": e.Error()}); return }
+	if e != nil {
+		writeJSON(w, 500, map[string]string{"error": e.Error()})
+		return
+	}
 	defer rows.Close()
 	var out []map[string]any
 	for rows.Next() {
-		var id int64; var sym, ex, tok, iv string; var act int
+		var id int64
+		var sym, ex, tok, iv string
+		var act int
 		if rows.Scan(&id, &sym, &ex, &tok, &iv, &act) == nil {
 			out = append(out, map[string]any{"id": id, "symbol": sym, "exchange": ex, "token": tok, "interval": iv, "is_active": act})
 		}
 	}
-	if out == nil { out = []map[string]any{} }
+	if out == nil {
+		out = []map[string]any{}
+	}
 	writeJSON(w, 200, out)
 }
 
@@ -322,9 +346,12 @@ func (s *Service) handleAddItem(w http.ResponseWriter, r *http.Request) {
 	gid := parseID(r)
 	var req struct{ Symbol, Exchange, Token, Interval string }
 	if json.NewDecoder(r.Body).Decode(&req) != nil || req.Symbol == "" {
-		http.Error(w, "symbol required", 400); return
+		http.Error(w, "symbol required", 400)
+		return
 	}
-	if req.Interval == "" { req.Interval = "1d" }
+	if req.Interval == "" {
+		req.Interval = "1d"
+	}
 
 	var existing int
 	s.TradingDB.QueryRow(
@@ -352,16 +379,27 @@ func (s *Service) handleDeleteItem(w http.ResponseWriter, r *http.Request) {
 
 func (s *Service) handleGetSettings(w http.ResponseWriter, r *http.Request) {
 	gid := parseID(r)
-	var ce, bp, lr string; var ia int
+	var ce, bp, lr string
+	var ia int
 	e := s.TradingDB.QueryRow(`SELECT cron_expression, is_active, broker_priority, last_run_status FROM scheduler_group_settings WHERE group_id=?`, gid).Scan(&ce, &ia, &bp, &lr)
-	if e != nil { writeJSON(w, 404, map[string]string{"error": "not found"}); return }
+	if e != nil {
+		writeJSON(w, 404, map[string]string{"error": "not found"})
+		return
+	}
 	writeJSON(w, 200, map[string]any{"cron": ce, "is_active": ia, "broker_priority": bp, "last_run": lr})
 }
 
 func (s *Service) handleUpdateSettings(w http.ResponseWriter, r *http.Request) {
 	gid := parseID(r)
-	var req struct{ Cron string; IsActive *int; BrokerPriority string }
-	if json.NewDecoder(r.Body).Decode(&req) != nil { http.Error(w, "bad request", 400); return }
+	var req struct {
+		Cron           string
+		IsActive       *int
+		BrokerPriority string
+	}
+	if json.NewDecoder(r.Body).Decode(&req) != nil {
+		http.Error(w, "bad request", 400)
+		return
+	}
 	if req.Cron != "" {
 		s.TradingDB.Exec(`UPDATE scheduler_group_settings SET cron_expression=? WHERE group_id=?`, req.Cron, gid)
 	}
@@ -376,16 +414,23 @@ func (s *Service) handleUpdateSettings(w http.ResponseWriter, r *http.Request) {
 func (s *Service) handleListLogs(w http.ResponseWriter, r *http.Request) {
 	gid := parseID(r)
 	rows, e := s.TradingDB.Query(`SELECT id, run_time, status, message, items_total, items_success, items_failed FROM scheduler_job_logs WHERE group_id=? ORDER BY run_time DESC LIMIT 20`, gid)
-	if e != nil { writeJSON(w, 500, map[string]string{"error": e.Error()}); return }
+	if e != nil {
+		writeJSON(w, 500, map[string]string{"error": e.Error()})
+		return
+	}
 	defer rows.Close()
 	var out []map[string]any
 	for rows.Next() {
-		var id int64; var rt, st, msg string; var tot, suc, fail int
+		var id int64
+		var rt, st, msg string
+		var tot, suc, fail int
 		if rows.Scan(&id, &rt, &st, &msg, &tot, &suc, &fail) == nil {
 			out = append(out, map[string]any{"id": id, "time": rt, "status": st, "message": msg, "total": tot, "success": suc, "failed": fail})
 		}
 	}
-	if out == nil { out = []map[string]any{} }
+	if out == nil {
+		out = []map[string]any{}
+	}
 	writeJSON(w, 200, out)
 }
 

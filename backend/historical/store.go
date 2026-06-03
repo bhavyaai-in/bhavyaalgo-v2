@@ -18,11 +18,15 @@ type Store struct {
 var globalStore *Store
 var storeMu sync.Mutex
 
-func GetStore() *Store {
+func GetStore(path string) *Store {
 	storeMu.Lock()
 	defer storeMu.Unlock()
 	if globalStore == nil {
-		globalStore = &Store{path: "historical.duckdb"}
+		// If path is empty, default it safely
+		if path == "" {
+			path = "db/historical.duckdb"
+		}
+		globalStore = &Store{path: path}
 	}
 	return globalStore
 }
@@ -100,7 +104,6 @@ func (s *Store) SaveCandles(symbol, exchange, token, interval string, candles []
 		return fmt.Errorf("duckdb prepare: %w", err)
 	}
 	defer stmt.Close()
-
 
 	for _, c := range candles {
 		_, err = stmt.Exec(symbol, exchange, token, interval, c.Timestamp, c.Open, c.High, c.Low, c.Close, c.Volume)

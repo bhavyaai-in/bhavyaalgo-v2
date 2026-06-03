@@ -16,20 +16,20 @@ import (
 )
 
 type Databases struct {
-	Market    *sql.DB
-	Trading   *sql.DB
-	MarketQ   *marketdb.Queries
-	TradingQ  *tradingdb.Queries
+	Market   *sql.DB
+	Trading  *sql.DB
+	MarketQ  *marketdb.Queries
+	TradingQ *tradingdb.Queries
 }
 
 func New(cfg *config.Config) (*Databases, error) {
 	marketPath := cfg.MarketDBPath
 	if marketPath == "" {
-		marketPath = "data-market.db"
+		marketPath = "db/data-market.db"
 	}
 	tradingPath := cfg.TradingDBPath
 	if tradingPath == "" {
-		tradingPath = "data-trading.db"
+		tradingPath = "db/data-trading.db"
 	}
 
 	marketDB, err := sql.Open("sqlite", marketPath)
