@@ -46,6 +46,7 @@ func (bp *AliceJSONParser) HandleIncomingStream(msg []byte) {
 	if !ok {
 		return
 	}
+	bp.Hub.UpdateLTP(tick.Token, tick.LTP)
 	payload, err := json.Marshal(map[string]any{
 		"type": "tick",
 		"data": tick,

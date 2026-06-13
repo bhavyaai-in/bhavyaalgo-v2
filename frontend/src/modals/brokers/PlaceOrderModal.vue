@@ -4,7 +4,7 @@ import { api } from '../../utils/api.js'
 import { useWebSocket } from '../../composables/useWebSocket.js'
 
 const props = defineProps({ show: Boolean, broker: Object, strategy: Object, presetContract: { type: Object, default: null } })
-const emit = defineEmits(['close'])
+const emit = defineEmits(['close', 'refresh'])
 
 const ws = useWebSocket()
 
@@ -29,6 +29,8 @@ const submitting = ref(false)
 const error = ref('')
 const success = ref(false)
 const ltpMap = ref({})
+const action = ref('normal')
+const tag = ref('manual')
 
 ws.onTick((tick) => {
   if (tick.token && tick.ltp != null) {
@@ -79,6 +81,8 @@ watch(() => props.show, async (val) => {
   error.value = ''
   submitting.value = false
   ltpMap.value = {}
+  action.value = 'normal'
+  tag.value = 'manual'
   if (props.presetContract) {
     selectContract(props.presetContract)
   }
@@ -170,12 +174,16 @@ async function placeOrder() {
     exchange: selectedContract.value.exchange,
     ordertype: orderType.value,
     producttype: productType.value === 'MIS' ? 'INTRADAY' : productType.value,
+    product: productType.value,
     duration: 'DAY',
     price: String(price.value),
     triggerprice: String(triggerPrice.value),
     squareoff: String(squareoff.value),
     stoploss: String(stoploss.value),
-    quantity: String(quantity.value),
+    quantity: action.value === 'sqoff' ? '0' : String(quantity.value),
+    sqoff: action.value === 'sqoff',
+    action: action.value,
+    tag: tag.value,
   }
   try {
     if (props.strategy) {
@@ -183,6 +191,7 @@ async function placeOrder() {
         method: 'POST',
         body: JSON.stringify({ data }),
       })
+      emit('refresh')
       const failed = (res.results || []).filter(r => !r.success)
       if (failed.length) {
         error.value = failed.map(r => (r.broker_name || '') + ': ' + (r.error || 'failed')).join('; ')
@@ -206,6 +215,9 @@ async function placeOrder() {
     }
   } catch (e) {
     error.value = e.message
+    if (props.strategy) {
+      emit('refresh')
+    }
   } finally {
     submitting.value = false
   }
@@ -217,7 +229,7 @@ function cap(str) { if (!str) return ''; return str.replace(/\b\w/g, c => c.toUp
 <template>
   <div v-if="show" class="modal-overlay" @click.self="emit('close')">
     <div class="modal-box">
-      <h3>Place Order</h3>
+      <h3>{{ strategy ? `Place Strategy Order (${strategy.name})` : 'Place Order' }}</h3>
 
       <template v-if="success">
         <div class="success-anim">
@@ -268,15 +280,28 @@ function cap(str) { if (!str) return ''; return str.replace(/\b\w/g, c => c.toUp
           </div>
         </div>
 
-        <!-- Buy/Sell toggle -->
-        <div class="bs-row">
+        <!-- Strategy Options (only shown if props.strategy is provided) -->
+        <div v-if="strategy" class="strategy-section">
+          <div class="field-grid" style="grid-template-columns: 1fr;">
+            <label>Order Mode
+              <select v-model="action">
+                <option value="normal">Normal Order</option>
+                <option value="sqoff">Square Off Position</option>
+              </select>
+            </label>
+          </div>
+        </div>
+
+        <!-- Buy/Sell toggle (hidden for Square Off) -->
+        <div v-if="action !== 'sqoff'" class="bs-row">
           <div class="bs-group">
             <button class="bs-btn" :class="{ active: transactionType === 'BUY' }" @click="transactionType = 'BUY'">Buy</button>
             <button class="bs-btn" :class="{ active: transactionType === 'SELL' }" @click="transactionType = 'SELL'">Sell</button>
           </div>
         </div>
 
-        <div class="field-grid">
+        <!-- Form fields (hidden for Square Off) -->
+        <div v-if="action !== 'sqoff'" class="field-grid">
           <label>Qty <input v-model.number="quantity" type="number" min="1" /></label>
           <label>Order Type
             <select v-model="orderType">
@@ -301,7 +326,14 @@ function cap(str) { if (!str) return ''; return str.replace(/\b\w/g, c => c.toUp
         <div v-if="error" class="error-msg">{{ error }}</div>
         <div class="form-actions">
           <button class="cancel" @click="emit('close')">Cancel</button>
-          <button class="order-btn" :class="transactionType === 'BUY' ? 'buy' : 'sell'" @click="placeOrder" :disabled="submitting || !selectedContract">{{ submitting ? 'Placing...' : (transactionType === 'BUY' ? 'Buy' : 'Sell') }}</button>
+          <button
+            class="order-btn"
+            :class="action === 'sqoff' ? 'sell' : (transactionType === 'BUY' ? 'buy' : 'sell')"
+            @click="placeOrder"
+            :disabled="submitting || !selectedContract"
+          >
+            {{ submitting ? 'Placing...' : (action === 'sqoff' ? 'Square Off' : (transactionType === 'BUY' ? 'Buy' : 'Sell')) }}
+          </button>
         </div>
       </template>
     </div>
@@ -391,6 +423,13 @@ function cap(str) { if (!str) return ''; return str.replace(/\b\w/g, c => c.toUp
 .bs-btn.active:first-child { background:var(--success-600); border-color:var(--success-600); }
 .bs-btn.active:last-child { background:var(--danger-600); border-color:var(--danger-600); }
 
+.strategy-section {
+  background: hsl(var(--muted)/.2);
+  border: 1px solid hsl(var(--border));
+  border-radius: var(--radius);
+  padding: .6rem .75rem;
+  margin-bottom: .75rem;
+}
 .form-actions { display:flex; gap:.5rem; margin-top:.75rem; }
 .order-btn { flex:1; padding:.6rem; border:none; border-radius:var(--radius); cursor:pointer; font-weight:600; color:#fff; font-size:.875rem; transition:opacity .15s; }
 .order-btn.buy { background:var(--success-600); }

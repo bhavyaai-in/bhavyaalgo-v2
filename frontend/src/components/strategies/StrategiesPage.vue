@@ -71,18 +71,7 @@ async function viewDetail(s) {
   } catch {}
 }
 
-async function viewJoiners(s) {
-  try {
-    const [joiners, positions, orders] = await Promise.all([
-      api('/api/strategies/' + s.id + '/joiners'),
-      api('/api/strategies/' + s.id + '/positions'),
-      api('/api/strategies/' + s.id + '/orders'),
-    ])
-    detailData.value = { strategy: s, joiners, positions, orders }
-    detailTab.value = 'joiners'
-    showDetail.value = true
-  } catch {}
-}
+// Removed viewJoiners and viewStrategyPositions since details tab is now unified in the modal.
 
 onMounted(() => {
   Promise.allSettled([fetchStrategies(), fetchTypes(), fetchBrokers()])
@@ -102,7 +91,7 @@ onMounted(() => {
     <div v-else-if="!strategies.length" class="state-msg">No strategies yet.</div>
 
     <div v-else class="strategy-grid">
-      <div v-for="s in strategies" :key="s.id" class="strategy-card" @click="viewDetail(s)">
+      <div v-for="s in strategies" :key="s.id" class="strategy-card" :style="{ borderLeft: '4px solid ' + (s.color || 'var(--primary)') }" @click="viewDetail(s)">
         <div class="sc-top">
           <span class="sc-type">{{ typeName(s.strategy_type) }}</span>
           <span v-if="s.is_active" class="sc-badge active">Active</span>
@@ -116,7 +105,7 @@ onMounted(() => {
         <div class="sc-actions" @click.stop>
           <button class="chip" @click.stop="openEdit(s)">Edit</button>
           <button class="chip danger" @click.stop="deleteStrategy(s)">Delete</button>
-          <button class="chip" @click.stop="viewJoiners(s)">Joiners</button>
+          <button class="chip" @click.stop="viewDetail(s)">Details</button>
           <button class="chip primary" @click.stop="placeOrderStrategy = s; showPlaceOrder = true">Place Order</button>
         </div>
       </div>
@@ -150,29 +139,39 @@ onMounted(() => {
 
 <style scoped>
 .page { padding: 0; }
-header { display:flex; justify-content:space-between; align-items:center; margin-bottom:1rem; }
-header h2 { margin:0; }
+header { display:flex; justify-content:space-between; align-items:center; margin-bottom:1.25rem; }
+header h2 { margin:0; font-weight:700; letter-spacing:-0.02em; }
 .add-btn {
-  padding:.5rem 1rem; border:none; border-radius:var(--radius);
-  background:hsl(var(--primary)); color:#fff; font-weight:500; cursor:pointer; font-size:var(--font-sm);
+  padding:.5rem 1.2rem; border:none; border-radius:var(--radius);
+  background:linear-gradient(135deg, hsl(var(--primary)), hsl(var(--primary)/.85)); color:#fff;
+  font-weight:600; cursor:pointer; font-size:var(--font-sm);
+  box-shadow: 0 4px 12px hsl(var(--primary)/.15); transition: opacity .15s, transform .15s;
 }
-.strategy-grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(260px,1fr)); gap:.75rem; }
+.add-btn:hover { opacity:0.95; transform:translateY(-1px); }
+.add-btn:active { transform:translateY(0); }
+.strategy-grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(280px,1fr)); gap:1rem; }
 .strategy-card {
   background:hsl(var(--card)); border:1px solid hsl(var(--border));
-  border-radius:var(--radius); padding:.75rem 1rem; cursor:pointer;
-  transition:border-color .15s; display:flex; flex-direction:column; gap:.5rem;
+  border-radius:var(--radius); padding:.9rem 1.15rem; cursor:pointer;
+  transition: transform 0.25s cubic-bezier(0.16, 1, 0.3, 1), box-shadow 0.25s, border-color 0.25s;
+  display:flex; flex-direction:column; gap:.6rem;
+  box-shadow: 0 2px 4px rgba(0,0,0,0.03);
 }
-.strategy-card:hover { border-color:hsl(var(--primary)); }
+.strategy-card:hover {
+  border-color:hsl(var(--primary)/.4);
+  transform: translateY(-3px);
+  box-shadow: 0 12px 24px -6px rgba(0,0,0,0.08), 0 4px 8px -2px rgba(0,0,0,0.04);
+}
 .sc-top { display:flex; justify-content:space-between; align-items:center; }
-.sc-type { font-size:var(--font-xs); color:hsl(var(--muted-foreground)); }
+.sc-type { font-size:var(--font-xs); color:hsl(var(--muted-foreground)); font-weight:500; }
 .sc-badge {
-  font-size:.625rem; font-weight:600; padding:1px 6px; border-radius:999px;
-  background:hsl(var(--muted)); color:hsl(var(--muted-foreground));
+  font-size:.625rem; font-weight:600; padding:2px 8px; border-radius:999px;
+  background:hsl(var(--muted)); color:hsl(var(--muted-foreground)); text-transform:uppercase; letter-spacing:0.02em;
 }
-.sc-badge.active { background:hsl(144 80% 55% / .15); color:#16A34A; }
-.sc-name { font-size:var(--font-base); font-weight:700; color:hsl(var(--foreground)); }
-.sc-meta { display:flex; gap:.75rem; font-size:var(--font-xs); color:hsl(var(--muted-foreground)); }
-.sc-actions { display:flex; gap:.4rem; margin-top:.25rem; }
+.sc-badge.active { background:hsl(144 80% 55% / .12); color:#10B981; }
+.sc-name { font-size:1rem; font-weight:700; color:hsl(var(--foreground)); letter-spacing:-0.01em; margin:.1rem 0; }
+.sc-meta { display:flex; gap:.9rem; font-size:var(--font-xs); color:hsl(var(--muted-foreground)); font-weight:500; }
+.sc-actions { display:flex; gap:.45rem; margin-top:.35rem; }
 
 .chip.primary:hover { opacity:.9; }
 .chip.danger:hover { border-color:hsl(var(--destructive)); color:hsl(var(--destructive)); }

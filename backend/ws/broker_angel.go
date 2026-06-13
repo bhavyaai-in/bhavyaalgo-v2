@@ -69,6 +69,7 @@ func (bp *AngelBinaryParser) HandleIncomingStream(msg []byte, tokenSymbol map[st
 	if !ok {
 		return
 	}
+	bp.Hub.UpdateLTP(tick.Token, tick.LTP)
 	tick.Symbol = tokenSymbol[tick.Token]
 	payload, err := json.Marshal(map[string]any{
 		"type": "tick",

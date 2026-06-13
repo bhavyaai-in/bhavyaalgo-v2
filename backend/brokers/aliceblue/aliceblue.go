@@ -28,8 +28,8 @@ type Client struct {
 func NewClient(appCode, apiSecret string) *Client {
 	jar, _ := cookiejar.New(nil)
 	return &Client{
-		appCode:   appCode,
-		apiSecret: apiSecret,
+		appCode:    appCode,
+		apiSecret:  apiSecret,
 		httpClient: &http.Client{Jar: jar},
 	}
 }
