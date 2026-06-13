@@ -32,7 +32,7 @@ func main() {
 		os.Exit(1)
 	}
 
-	sessions := service.NewSessionStore(24 * time.Hour)
+	sessions := service.NewSessionStore(databases.Trading, 24 * time.Hour)
 	hub := ws.NewHub()
 
 	ctx := context.Background()

@@ -13,8 +13,8 @@ const joinerForm = ref({ broker_id: 0, quantity: 1, multiplier: 1, re_entry: 1, 
 const submitting = ref(false)
 const showPlaceOrder = ref(false)
 const editingJoiner = ref(null)
-const strategyOrders = ref([])
-const loadingOrders = ref(false)
+const strategyPositions = ref([])
+const loadingStrategyPositions = ref(false)
 
 const availableBrokers = computed(() => {
   const joined = new Set((props.data?.joiners || []).map(j => j.broker_id))
@@ -96,17 +96,34 @@ async function toggleJoinerActive(j) {
   j.is_active = newVal
 }
 
-async function loadStrategyOrders() {
+async function loadStrategyPositions() {
   if (!props.data?.strategy?.id) return
-  loadingOrders.value = true
+  loadingStrategyPositions.value = true
   try {
-    strategyOrders.value = await api('/api/strategies/' + props.data.strategy.id + '/orders')
-  } catch { strategyOrders.value = [] }
-  finally { loadingOrders.value = false }
+    strategyPositions.value = await api('/api/strategies/' + props.data.strategy.id + '/paper-positions')
+  } catch { strategyPositions.value = [] }
+  finally { loadingStrategyPositions.value = false }
+}
+
+async function refreshData() {
+  if (!props.data?.strategy?.id) return
+  loadStrategyPositions()
+  try {
+    const [positions, orders] = await Promise.all([
+      api('/api/strategies/' + props.data.strategy.id + '/positions'),
+      api('/api/strategies/' + props.data.strategy.id + '/orders'),
+    ])
+    props.data.positions = positions
+    props.data.orders = orders
+  } catch (e) {
+    console.error("failed to refresh modal details:", e)
+  }
 }
 
 watch(() => props.data, (val) => {
-  if (val?.strategy?.id) loadStrategyOrders()
+  if (val?.strategy?.id) {
+    loadStrategyPositions()
+  }
 }, { immediate: true })
 
 </script>
@@ -119,10 +136,10 @@ watch(() => props.data, (val) => {
       <!-- Sub-tabs -->
       <div class="sub-tabs">
         <button :class="{ active: activeTab === 'overview' }" @click="activeTab = 'overview'">Overview</button>
+        <button :class="{ active: activeTab === 'strategypositions' }" @click="activeTab = 'strategypositions'">Strategy Positions <span class="tab-badge">{{ strategyPositions.length }}</span></button>
         <button :class="{ active: activeTab === 'joiners' }" @click="activeTab = 'joiners'">Joiners <span class="tab-badge">{{ (data.joiners || []).length }}</span></button>
-        <button :class="{ active: activeTab === 'positions' }" @click="activeTab = 'positions'">Positions <span class="tab-badge">{{ (data.positions || []).length }}</span></button>
-        <button :class="{ active: activeTab === 'orders' }" @click="activeTab = 'orders'">Orders <span class="tab-badge">{{ (data.orders || []).length }}</span></button>
-        <button :class="{ active: activeTab === 'strategyorders' }" @click="activeTab = 'strategyorders'">Strategy Orders <span class="tab-badge">{{ strategyOrders.length }}</span></button>
+        <button :class="{ active: activeTab === 'orders' }" @click="activeTab = 'orders'">Broker Orders <span class="tab-badge">{{ (data.orders || []).length }}</span></button>
+        <button :class="{ active: activeTab === 'positions' }" @click="activeTab = 'positions'">Broker Positions <span class="tab-badge">{{ (data.positions || []).length }}</span></button>
       </div>
 
       <!-- Overview Tab -->
@@ -214,28 +231,54 @@ watch(() => props.data, (val) => {
         <div v-else-if="!showAddJoiner" class="empty-msg">No brokers joined to this strategy.</div>
       </div>
 
-      <!-- Positions Tab -->
-      <div v-if="activeTab === 'positions'" class="tab-panel">
-        <table v-if="(data.positions || []).length" class="data-table">
-          <thead><tr><th>Symbol</th><th>Side</th><th>Qty</th><th>Buy Price</th><th>Sell Price</th><th>LTP</th></tr></thead>
+      <!-- Strategy Positions Tab -->
+      <div v-if="activeTab === 'strategypositions'" class="tab-panel">
+        <div v-if="loadingStrategyPositions" class="empty-msg">Loading...</div>
+        <table v-else-if="strategyPositions.length" class="data-table">
+          <thead>
+            <tr>
+              <th>#</th>
+              <th>Symbol</th>
+              <th>Exchange</th>
+              <th>Product</th>
+              <th>Side</th>
+              <th>Qty</th>
+              <th>Buy Price</th>
+              <th>Sell Price</th>
+              <th>LTP</th>
+              <th>Status</th>
+              <th>Message</th>
+              <th>Time</th>
+            </tr>
+          </thead>
           <tbody>
-            <tr v-for="p in data.positions" :key="p.id">
-              <td>{{ p.tradingsymbol }}</td>
-              <td>{{ p.side }}</td>
-              <td>{{ p.quantity }}</td>
-              <td>{{ fmt(p.buy_price) }}</td>
-              <td>{{ fmt(p.sell_price) }}</td>
-              <td>{{ fmt(p.last_price) }}</td>
+            <tr v-for="(sp, idx) in strategyPositions" :key="sp.id">
+              <td>{{ idx + 1 }}</td>
+              <td><strong>{{ sp.tradingsymbol }}</strong></td>
+              <td>{{ sp.exchange }}</td>
+              <td>{{ sp.product }}</td>
+              <td :style="{ color: sp.side === 'BUY' ? 'var(--success-600)' : 'var(--danger-600)' }">
+                <strong>{{ sp.side }}</strong>
+              </td>
+              <td>{{ sp.quantity }}</td>
+              <td>{{ fmt(sp.buy_price) }}</td>
+              <td>{{ fmt(sp.sell_price) }}</td>
+              <td>{{ fmt(sp.last_price) }}</td>
+              <td>
+                <span class="status-badge" :class="sp.status">{{ sp.status }}</span>
+              </td>
+              <td class="msg-cell" :title="sp.message">{{ sp.message || '-' }}</td>
+              <td>{{ sp.created_at?.slice(0, 16) || '-' }}</td>
             </tr>
           </tbody>
         </table>
-        <div v-else class="empty-msg">No positions.</div>
+        <div v-else class="empty-msg">No strategy positions yet.</div>
       </div>
 
-      <!-- Orders Tab -->
+      <!-- Broker Orders Tab -->
       <div v-if="activeTab === 'orders'" class="tab-panel">
         <table v-if="(data.orders || []).length" class="data-table">
-          <thead><tr><th>Order ID</th><th>Symbol</th><th>Type</th><th>Qty</th><th>Price</th><th>Status</th></tr></thead>
+          <thead><tr><th>Order ID</th><th>Symbol</th><th>Type</th><th>Qty</th><th>Price</th><th>Status</th><th>Time</th></tr></thead>
           <tbody>
             <tr v-for="o in data.orders" :key="o.id">
               <td>{{ o.order_id }}</td>
@@ -244,34 +287,30 @@ watch(() => props.data, (val) => {
               <td>{{ o.quantity }}</td>
               <td>{{ fmt(o.price) }}</td>
               <td>{{ o.status }}</td>
+              <td>{{ o.created_at?.slice(0, 16) || '-' }}</td>
             </tr>
           </tbody>
         </table>
         <div v-else class="empty-msg">No orders.</div>
       </div>
 
-      <!-- Strategy Orders Tab -->
-      <div v-if="activeTab === 'strategyorders'" class="tab-panel">
-        <div v-if="loadingOrders" class="empty-msg">Loading...</div>
-        <table v-else-if="strategyOrders.length" class="data-table">
-          <thead><tr><th>#</th><th>Order ID</th><th>Symbol</th><th>Side</th><th>Qty</th><th>Type</th><th>Status</th><th>Message</th><th>Time</th></tr></thead>
+      <!-- Broker Positions Tab -->
+      <div v-if="activeTab === 'positions'" class="tab-panel">
+        <table v-if="(data.positions || []).length" class="data-table">
+          <thead><tr><th>Symbol</th><th>Side</th><th>Qty</th><th>Buy Price</th><th>Sell Price</th><th>LTP</th><th>Time</th></tr></thead>
           <tbody>
-            <tr v-for="(o, i) in strategyOrders" :key="o.id">
-              <td>{{ i + 1 }}</td>
-              <td>{{ o.order_id || '-' }}</td>
-              <td>{{ o.tradingsymbol }}</td>
-              <td>{{ o.transaction_type }}</td>
-              <td>{{ o.quantity }}</td>
-              <td>{{ o.order_type }}</td>
-              <td>
-                <span class="status-badge" :class="o.status">{{ o.status }}</span>
-              </td>
-              <td class="msg-cell">{{ o.status_message || '-' }}</td>
-              <td class="ts-cell">{{ o.created_at?.slice(11,16) || '' }}</td>
+            <tr v-for="p in data.positions" :key="p.id">
+              <td>{{ p.tradingsymbol }}</td>
+              <td>{{ p.side }}</td>
+              <td>{{ p.quantity }}</td>
+              <td>{{ fmt(p.buy_price) }}</td>
+              <td>{{ fmt(p.sell_price) }}</td>
+              <td>{{ fmt(p.last_price) }}</td>
+              <td>{{ p.created_at?.slice(0, 16) || '-' }}</td>
             </tr>
           </tbody>
         </table>
-        <div v-else class="empty-msg">No strategy orders yet. Place an order from this strategy to see it here.</div>
+        <div v-else class="empty-msg">No positions.</div>
       </div>
 
       <!-- Place Order button -->
@@ -285,65 +324,144 @@ watch(() => props.data, (val) => {
       :show="showPlaceOrder"
       :strategy="data.strategy"
       @close="showPlaceOrder = false"
+      @refresh="refreshData"
     />
   </div>
 </template>
 
 <style scoped>
-.modal-box { max-width:720px; }
-h3 { margin-bottom:.75rem; }
+.modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.4);
+  backdrop-filter: blur(4px);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  z-index: 100;
+}
+.modal-box {
+  background: hsl(var(--card));
+  border: 1px solid hsl(var(--border));
+  border-radius: 12px;
+  padding: 1.5rem;
+  width: 95%;
+  max-width: 840px;
+  box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25);
+  max-height: 85vh;
+  overflow-y: auto;
+}
+h3 { margin: 0 0 1rem 0; font-size: 1.25rem; font-weight: 700; color: hsl(var(--foreground)); letter-spacing: -0.01em; }
 
 /* Sub-tabs */
-.sub-tabs { display:flex; gap:0; border-bottom:1px solid hsl(var(--border)); margin-bottom:.75rem; }
-.sub-tabs button {
-  padding:.45rem .9rem; border:none; background:transparent;
-  font-size:var(--font-sm); color:hsl(var(--muted-foreground)); cursor:pointer;
-  border-bottom:2px solid transparent; font-weight:500; display:flex; align-items:center; gap:4px;
-  transition:color .15s;
+.sub-tabs {
+  display: flex;
+  gap: .25rem;
+  border-bottom: 1px solid hsl(var(--border) / 0.8);
+  margin-bottom: 1.25rem;
+  padding-bottom: 0.35rem;
+  overflow-x: auto;
 }
-.sub-tabs button.active { color:hsl(var(--primary)); border-bottom-color:hsl(var(--primary)); }
-.sub-tabs button:hover { color:hsl(var(--foreground)); }
+.sub-tabs button {
+  padding: .5rem 1rem;
+  border: none;
+  background: transparent;
+  font-size: var(--font-sm);
+  color: hsl(var(--muted-foreground));
+  cursor: pointer;
+  border-radius: var(--radius);
+  font-weight: 600;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  transition: all 0.2s ease;
+  white-space: nowrap;
+}
+.sub-tabs button:hover {
+  color: hsl(var(--foreground));
+  background: hsl(var(--muted) / 0.5);
+}
+.sub-tabs button.active {
+  color: hsl(var(--primary));
+  background: hsl(var(--primary) / 0.08);
+}
+.tab-badge {
+  font-size: 10px;
+  background: hsl(var(--muted-foreground) / 0.15);
+  color: hsl(var(--foreground));
+  padding: 1px 6px;
+  border-radius: 999px;
+  font-weight: 600;
+}
+.sub-tabs button.active .tab-badge {
+  background: hsl(var(--primary));
+  color: #fff;
+}
 
-.sub-tabs button.active 
-
-.tab-panel { min-height:100px; }
+.tab-panel { min-height: 120px; }
 
 /* Overview */
-.info-grid { display:grid; grid-template-columns:1fr 1fr; gap:.5rem; }
-.info-item { display:flex; flex-direction:column; gap:2px; padding:.35rem .5rem; border-radius:var(--radius); background:hsl(var(--muted)/.3); }
-.info-item span { font-size:var(--font-xs); color:hsl(var(--muted-foreground)); }
-.info-item strong { font-size:var(--font-sm); color:hsl(var(--foreground)); }
+.info-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+  gap: .75rem;
+  margin-top: .5rem;
+}
+.info-item {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: .75rem 1rem;
+  border-radius: var(--radius);
+  background: hsl(var(--card));
+  border: 1px solid hsl(var(--border) / 0.7);
+  box-shadow: 0 1px 2px rgba(0,0,0,0.02);
+}
+.info-item span {
+  font-size: var(--font-xs);
+  color: hsl(var(--muted-foreground));
+  font-weight: 500;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+.info-item strong {
+  font-size: var(--font-base);
+  color: hsl(var(--foreground));
+  font-weight: 700;
+}
 .color-dot { display:inline-block; width:12px; height:12px; border-radius:999px; vertical-align:middle; margin-right:4px; }
 
 /* Joiners */
-.section-bar { display:flex; justify-content:space-between; align-items:center; margin-bottom:.6rem; }
-.bar-title { font-size:var(--font-sm); color:hsl(var(--muted-foreground)); }
+.section-bar { display:flex; justify-content:space-between; align-items:center; margin-bottom:.75rem; }
+.bar-title { font-size:var(--font-sm); color:hsl(var(--muted-foreground)); font-weight: 600; }
 .joiner-form {
-  background:hsl(var(--muted)/.2); border:1px solid hsl(var(--border));
-  border-radius:var(--radius); padding:.75rem 1rem; margin-bottom:.75rem;
-  display:flex; flex-direction:column; gap:.65rem;
+  background:hsl(var(--muted)/.2); border:1px solid hsl(var(--border)/0.8);
+  border-radius:var(--radius); padding:1rem; margin-bottom:1rem;
+  display:flex; flex-direction:column; gap:.75rem;
 }
-.jf-row { display:flex; flex-direction:column; gap:3px; }
+.jf-row { display:flex; flex-direction:column; gap:4px; }
 .jf-label { font-size:var(--font-xs); font-weight:600; color:hsl(var(--foreground)); }
-.jf-dual { display:flex; flex-direction:column; gap:.65rem; }
+.jf-dual { display:flex; flex-direction:column; gap:.75rem; }
 @media (min-width:500px) {
   .jf-dual { flex-direction:row; gap:.75rem; }
   .jf-dual .jf-row { flex:1; }
 }
 .jf-row select, .jf-row input {
-  padding:.45rem .55rem; border:1px solid hsl(var(--input)); border-radius:var(--radius);
+  padding:.5rem .75rem; border:1px solid hsl(var(--input)); border-radius:var(--radius);
   font-size:var(--font-sm); outline:none; background:hsl(var(--card)); width:100%;
+  transition: border-color 0.15s, box-shadow 0.15s;
 }
-.jf-row select:focus, .jf-row input:focus { border-color:hsl(var(--ring)); box-shadow:0 0 0 2px hsl(var(--ring)/.2); }
+.jf-row select:focus, .jf-row input:focus { border-color:hsl(var(--primary)); box-shadow:0 0 0 2px hsl(var(--primary)/.15); }
 .mode-toggle { display:flex; border:1px solid hsl(var(--input)); border-radius:var(--radius); overflow:hidden; }
 .mode-btn {
-  flex:1; padding:.4rem .5rem; border:none; font-size:var(--font-xs); font-weight:600;
+  flex:1; padding:.45rem .5rem; border:none; font-size:var(--font-xs); font-weight:600;
   cursor:pointer; background:transparent; color:hsl(var(--muted-foreground));
+  transition: all 0.15s;
 }
 .mode-btn.active { background:hsl(var(--primary)); color:#fff; }
 .mode-btn:not(.active):hover { background:hsl(var(--muted)); }
-.switch-label { display:flex; align-items:center; gap:6px; font-size:var(--font-sm); color:hsl(var(--muted-foreground)); cursor:pointer; }
-.switch { position:relative; display:inline-block; width:34px; height:20px; flex-shrink:0; }
+.switch-label { display:flex; align-items:center; gap:8px; font-size:var(--font-sm); color:hsl(var(--muted-foreground)); cursor:pointer; }
+.switch { position:relative; display:inline-block; width:36px; height:20px; flex-shrink:0; }
 .switch input { opacity:0; width:0; height:0; }
 .slider {
   position:absolute; inset:0; background:hsl(var(--muted-foreground)); border-radius:999px;
@@ -354,54 +472,62 @@ h3 { margin-bottom:.75rem; }
   background:#fff; border-radius:999px; transition:transform .2s;
 }
 .switch input:checked + .slider { background:hsl(var(--primary)); }
-.switch input:checked + .slider::before { transform:translateX(14px); }
-.jf-actions { display:flex; gap:.5rem; margin-top:.25rem; }
-.jf-actions .small-btn { flex:1; text-align:center; }
-.joiner-list { display:flex; flex-direction:column; gap:.4rem; }
+.switch input:checked + .slider::before { transform:translateX(16px); }
+.jf-actions { display:flex; gap:.5rem; margin-top:.35rem; }
+.jf-actions .small-btn { flex:1; text-align:center; padding: .45rem; }
+.joiner-list { display:flex; flex-direction:column; gap:.5rem; }
 .joiner-row {
   display:flex; justify-content:space-between; align-items:center;
-  padding:.5rem .65rem; border:1px solid hsl(var(--border)); border-radius:var(--radius);
+  padding:.65rem .85rem; border:1px solid hsl(var(--border) / 0.8); border-radius:var(--radius);
+  background: hsl(var(--card));
 }
-.joiner-left { display:flex; align-items:center; gap:.6rem; }
+.joiner-left { display:flex; align-items:center; gap:.75rem; }
 .joiner-row-actions { display:flex; gap:.35rem; flex-shrink:0; }
 .joiner-info { display:flex; flex-direction:column; gap:2px; }
 .joiner-info strong { font-size:var(--font-sm); color:hsl(var(--foreground)); }
 .joiner-meta { font-size:var(--font-xs); color:hsl(var(--muted-foreground)); }
-.joiner-row .switch { position:relative; display:inline-block; width:34px; height:20px; flex-shrink:0; cursor:pointer; }
-.joiner-row .switch input { opacity:0; width:0; height:0; }
-.joiner-row .switch .slider {
-  position:absolute; inset:0; background:hsl(var(--muted-foreground)); border-radius:999px;
-  transition:background .2s; cursor:pointer;
-}
-.joiner-row .switch .slider::before {
-  content:''; position:absolute; left:3px; top:3px; width:14px; height:14px;
-  background:#fff; border-radius:999px; transition:transform .2s;
-}
-.joiner-row .switch input:checked + .slider { background:#16A34A; }
-.joiner-row .switch input:checked + .slider::before { transform:translateX(14px); }
 
 /* Data table */
-
-
-
-
+.data-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: var(--font-sm);
+  margin-top: 0.5rem;
+}
+.data-table th, .data-table td {
+  padding: .65rem .85rem;
+  border-bottom: 1px solid hsl(var(--border) / 0.6);
+  text-align: left;
+  white-space: nowrap;
+}
+.data-table th {
+  font-weight: 600;
+  color: hsl(var(--foreground));
+  background: hsl(var(--muted) / 0.4);
+}
+.data-table tbody tr {
+  transition: background-color 0.15s ease;
+}
+.data-table tbody tr:hover {
+  background-color: hsl(var(--muted) / 0.2);
+}
 
 /* Status badges */
-.status-badge { font-size:.625rem; font-weight:600; padding:1px 6px; border-radius:999px; text-transform:capitalize; }
-.status-badge.placing { background:hsl(210 100% 50%/.15); color:hsl(210 100% 50%); }
-.status-badge.placed { background:hsl(142 70% 45%/.15); color:#16A34A; }
-.status-badge.partial { background:hsl(38 92% 50%/.15); color:#D97706; }
-.status-badge.error { background:hsl(0 84% 60%/.15); color:hsl(0 84% 60%); }
-.msg-cell { max-width:200px; overflow:hidden; text-overflow:ellipsis; font-size:var(--font-xs); }
+.status-badge { font-size:.625rem; font-weight:600; padding:2px 8px; border-radius:999px; text-transform:capitalize; }
+.status-badge.placing { background:hsl(210 100% 50%/.12); color:hsl(210 100% 50%); }
+.status-badge.placed, .status-badge.open { background:hsl(142 70% 45%/.12); color:#10B981; }
+.status-badge.partial { background:hsl(38 92% 50%/.12); color:#D97706; }
+.status-badge.error, .status-badge.closed { background:hsl(0 84% 60%/.12); color:hsl(0 84% 60%); }
+.msg-cell { max-width:220px; overflow:hidden; text-overflow:ellipsis; font-size:var(--font-xs); }
 .ts-cell { font-size:var(--font-xs); color:hsl(var(--muted-foreground)); }
 
-
-
-.close-btn { padding:.5rem 1.5rem; border:1px solid hsl(var(--border)); background:hsl(var(--card)); border-radius:var(--radius); cursor:pointer; font-weight:500; }
-.modal-footer { display:flex; gap:.5rem; justify-content:center; margin-top:1rem; }
+.close-btn { padding:.5rem 1.5rem; border:1px solid hsl(var(--border)); background:hsl(var(--card)); border-radius:var(--radius); cursor:pointer; font-weight:500; transition: background-color 0.15s; }
+.close-btn:hover { background-color: hsl(var(--muted) / 0.3); }
+.modal-footer { display:flex; gap:.5rem; justify-content:center; margin-top:1.25rem; }
 .order-btn {
   padding:.5rem 1.5rem; border:none; border-radius:var(--radius); cursor:pointer;
   font-weight:600; color:#fff; background:hsl(var(--primary));
+  box-shadow: 0 4px 12px hsl(var(--primary)/.15); transition: opacity .15s;
 }
 .order-btn:hover { opacity:.9; }
 </style>

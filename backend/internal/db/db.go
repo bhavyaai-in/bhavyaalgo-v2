@@ -88,6 +88,11 @@ func New(cfg *config.Config) (*Databases, error) {
 		tradingDB.Close()
 		return nil, fmt.Errorf("create trading tables: %w", err)
 	}
+	if err := seedDefaultStrategyTypes(tradingDB); err != nil {
+		marketDB.Close()
+		tradingDB.Close()
+		return nil, fmt.Errorf("seed strategy types: %w", err)
+	}
 
 	if _, err := marketDB.Exec(`DELETE FROM master_contracts WHERE id NOT IN (SELECT MIN(id) FROM master_contracts GROUP BY symbol, exchange, instrumenttype, token)`); err != nil {
 		log.Printf("clean master_contracts duplicates: %v", err)
@@ -126,6 +131,24 @@ func createTradingTables(database *sql.DB) error {
 	for _, ddl := range TradingDDLs {
 		if _, err := database.Exec(ddl); err != nil {
 			return fmt.Errorf("exec trading ddl: %w", err)
+		}
+	}
+	return nil
+}
+
+func seedDefaultStrategyTypes(database *sql.DB) error {
+	var count int
+	if err := database.QueryRow(`SELECT COUNT(*) FROM strategy_types`).Scan(&count); err != nil {
+		return err
+	}
+	if count > 0 {
+		return nil
+	}
+
+	defaultTypes := []string{"single_leg", "multi_leg"}
+	for _, name := range defaultTypes {
+		if _, err := database.Exec(`INSERT INTO strategy_types (name, rules_explanation) VALUES (?, ?)`, name, ""); err != nil {
+			return err
 		}
 	}
 	return nil

@@ -245,6 +245,13 @@ CREATE INDEX IF NOT EXISTS idx_orders_strategy ON orders(strategy_id);
 CREATE INDEX IF NOT EXISTS idx_orders_order_id ON orders(order_id);
 CREATE INDEX IF NOT EXISTS idx_orders_tag ON orders(tag);`
 
+const SessionsTableSQL = `
+CREATE TABLE IF NOT EXISTS sessions (
+	token TEXT PRIMARY KEY,
+	email TEXT NOT NULL,
+	created_at TEXT NOT NULL
+);`
+
 var MarketDDLs = []string{
 	WatchlistsTableSQL,
 	WatchlistItemsTableSQL,
@@ -264,4 +271,6 @@ var TradingDDLs = []string{
 	PositionsTableSQL,
 	StrategyPositionsTableSQL,
 	OrdersTableSQL,
+	SessionsTableSQL,
 }
+

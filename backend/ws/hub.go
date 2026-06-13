@@ -24,6 +24,7 @@ type Hub struct {
 	broker      *BrokerClient
 	aliceBroker *AliceBrokerClient
 	brokerName  string
+	ltpCache    map[string]float64
 }
 
 func NewHub() *Hub {
@@ -31,6 +32,7 @@ func NewHub() *Hub {
 		clients:     make(map[*Client]bool),
 		subscribers: make(map[string]map[*Client]bool),
 		subscribed:  make(map[string]int),
+		ltpCache:    make(map[string]float64),
 	}
 }
 
@@ -273,4 +275,23 @@ func (h *Hub) StopBroker() {
 	}
 	h.brokerName = ""
 	h.mu.Unlock()
+}
+
+func (h *Hub) UpdateLTP(token string, ltp float64) {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	if h.ltpCache == nil {
+		h.ltpCache = make(map[string]float64)
+	}
+	h.ltpCache[token] = ltp
+}
+
+func (h *Hub) GetLTP(token string) (float64, bool) {
+	h.mu.RLock()
+	defer h.mu.RUnlock()
+	if h.ltpCache == nil {
+		return 0, false
+	}
+	ltp, ok := h.ltpCache[token]
+	return ltp, ok
 }

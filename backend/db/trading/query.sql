@@ -174,6 +174,14 @@ WHERE id=?;
 -- name: ListStrategyPositions :many
 SELECT * FROM strategy_positions WHERE strategy_id=? ORDER BY id;
 
+-- name: ListActiveStrategyPositions :many
+SELECT * FROM strategy_positions
+WHERE strategy_id = ?
+  AND status != 'closed'
+  AND status != 'squared_off'
+  AND (created_at LIKE ? OR product NOT IN ('MIS', 'INTRADAY', 'mis', 'intraday'))
+ORDER BY id;
+
 -- name: GetStrategyPosition :one
 SELECT * FROM strategy_positions WHERE id=?;
 
@@ -197,6 +205,14 @@ SELECT * FROM positions WHERE broker_id=? ORDER BY created_at DESC;
 -- name: ListPositionsByStrategy :many
 SELECT * FROM positions WHERE strategy_id=? ORDER BY created_at DESC;
 
+-- name: ListActivePositionsByStrategy :many
+SELECT * FROM positions
+WHERE strategy_id = ?
+  AND status != 'closed'
+  AND status != 'squared_off'
+  AND (created_at LIKE ? OR product NOT IN ('MIS', 'INTRADAY', 'mis', 'intraday'))
+ORDER BY created_at DESC;
+
 -- name: GetPosition :one
 SELECT * FROM positions WHERE id=?;
 
@@ -213,3 +229,4 @@ UPDATE positions SET
     multiplier=?, side=?, buy_price=?, sell_price=?, product=?, status=?, message=?,
     updated_at=datetime('now','localtime')
 WHERE id=?;
+

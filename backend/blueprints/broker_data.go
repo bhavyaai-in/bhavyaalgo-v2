@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"net/http"
 	"strconv"
+	"strings"
 
 	"bhavyaaialgo/backend/brokers/aliceblue"
 	"bhavyaaialgo/backend/brokers/angel"
@@ -24,11 +25,11 @@ func (a *App) RegisterBrokerDataRoutes(mux *http.ServeMux) {
 }
 
 type brokerClientResult struct {
-	angelClient   *angel.Client
-	aliceClient   *aliceblue.Client
-	authToken     string
-	brokerName    string
-	tokenStatus   string
+	angelClient *angel.Client
+	aliceClient *aliceblue.Client
+	authToken   string
+	brokerName  string
+	tokenStatus string
 }
 
 func (a *App) brokerClient(id int64) (*brokerClientResult, error) {
@@ -191,24 +192,24 @@ func (a *App) handleBrokerMargin(w http.ResponseWriter, r *http.Request) {
 
 func normalizeOrders(orders []map[string]any) []map[string]any {
 	fieldMap := map[string]string{
-		"brokerOrderId":          "orderid",
-		"tradingSymbol":          "tradingsymbol",
+		"brokerOrderId":           "orderid",
+		"tradingSymbol":           "tradingsymbol",
 		"formattedInstrumentName": "tradingsymbol",
-		"transactionType":        "transactiontype",
-		"filledQuantity":         "filledshares",
-		"orderType":              "ordertype",
-		"product":                "producttype",
-		"orderStatus":            "orderstatus",
-		"rejectionReason":        "text",
-		"instrumentId":           "instrumenttoken",
-		"slTriggerPrice":         "triggerprice",
-		"requestTime":            "ordertime",
-		"orderDate":              "ordertime",
-		"orderDateTime":          "ordertime",
-		"timestamp":              "ordertime",
-		"createdAt":              "ordertime",
-		"created_at":            "ordertime",
-		"dateTime":               "ordertime",
+		"transactionType":         "transactiontype",
+		"filledQuantity":          "filledshares",
+		"orderType":               "ordertype",
+		"product":                 "producttype",
+		"orderStatus":             "orderstatus",
+		"rejectionReason":         "text",
+		"instrumentId":            "instrumenttoken",
+		"slTriggerPrice":          "triggerprice",
+		"requestTime":             "ordertime",
+		"orderDate":               "ordertime",
+		"orderDateTime":           "ordertime",
+		"timestamp":               "ordertime",
+		"createdAt":               "ordertime",
+		"created_at":              "ordertime",
+		"dateTime":                "ordertime",
 	}
 	for _, order := range orders {
 		for oldKey, newKey := range fieldMap {
@@ -226,7 +227,7 @@ func checkAliceError(result map[string]any) error {
 	if result == nil {
 		return nil
 	}
-	if status, _ := result["status"].(string); status == "Not_Ok" || status == "Error" {
+	if status, _ := result["status"].(string); strings.EqualFold(status, "Not_Ok") || strings.EqualFold(status, "Error") || strings.EqualFold(status, "Rejected") {
 		msg, _ := result["emsg"].(string)
 		if msg == "" {
 			msg, _ = result["message"].(string)
@@ -255,6 +256,24 @@ func checkAngelError(result map[string]any) error {
 	if code, _ := result["errorcode"].(string); code != "" {
 		msg, _ := result["message"].(string)
 		return fmt.Errorf("%s: %s", code, msg)
+	}
+	switch status := result["status"].(type) {
+	case bool:
+		if !status {
+			msg, _ := result["message"].(string)
+			if msg == "" {
+				msg = "request failed"
+			}
+			return fmt.Errorf("%s", msg)
+		}
+	case string:
+		if strings.EqualFold(status, "false") || strings.EqualFold(status, "error") || strings.EqualFold(status, "not_ok") {
+			msg, _ := result["message"].(string)
+			if msg == "" {
+				msg = "request failed"
+			}
+			return fmt.Errorf("%s", msg)
+		}
 	}
 	return nil
 }
